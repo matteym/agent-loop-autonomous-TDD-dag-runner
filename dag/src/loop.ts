@@ -663,7 +663,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         agent,
         "DAG node " +
           task.id +
-          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in backend/ and UI in frontend/. If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
+          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in src/backend and UI in src/frontend. If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
           task.prompt,
         task
       );

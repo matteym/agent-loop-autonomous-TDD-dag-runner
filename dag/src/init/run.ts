@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { askAnswers } from "./ask.js";
-import { defaultAnswers, summarize, validateAnswers, type InitAnswers } from "./answers.js";
+import { defaultAnswers, validateAnswers, type InitAnswers } from "./answers.js";
 import { writeBootstrap } from "./bootstrap.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
@@ -70,23 +69,7 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
     }
   }
 
-  phase("ASK", "backend/ frontend/ only");
-  let answers: InitAnswers | null;
-  if (opts.nonInteractive) {
-    answers = loadNonInteractiveAnswers();
-    log(summarize(answers));
-  } else if (!process.stdin.isTTY) {
-    return {
-      status: "refused",
-      reason: "run yarn run init on a TTY or pass --yes",
-    };
-  } else {
-    answers = await askAnswers();
-    if (!answers) {
-      phase("ASK", "aborted");
-      return { status: "aborted" };
-    }
-  }
+  const answers = opts.nonInteractive ? loadNonInteractiveAnswers() : defaultAnswers();
 
   mkdirSync(metadataDir, { recursive: true });
   writeFileSync(metadataInitLastPath, JSON.stringify(answers, null, 2) + "\n");
@@ -96,12 +79,10 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   writeFileSync(join(repoRoot, "docker-compose.yml"), renderCompose());
   writeFileSync(join(repoRoot, ".env"), env.dotenv);
   writeFileSync(join(repoRoot, ".env.example"), env.example);
-  log("wrote .env (keys only) " + env.keys.join(","));
-
-  phase("BOOTSTRAP", "backend/ frontend/");
+  phase("BOOTSTRAP", "src/backend src/frontend");
   writeBootstrap(repoRoot);
   commitRails(repoRoot);
 
-  log('next: cd dag && yarn task "your first feature"');
+  log('next: yarn task "your first feature"');
   return { status: "ok" };
 }

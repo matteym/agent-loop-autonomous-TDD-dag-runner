@@ -13,11 +13,11 @@ describe("new cwd", () => {
   it("treats empty backend as fillable", () => {
     const dir = mkdtempSync(join(tmpdir(), "dag-cwd-"));
     try {
-      mkdirSync(join(dir, "backend"), { recursive: true });
-      writeFileSync(join(dir, "backend", ".gitkeep"), "");
-      expect(isFillableCwd(dir, "backend")).toBe(true);
-      writeFileSync(join(dir, "backend", "package.json"), "{}");
-      expect(isFillableCwd(dir, "backend")).toBe(false);
+      mkdirSync(join(dir, "src", "backend"), { recursive: true });
+      writeFileSync(join(dir, "src", "backend", ".gitkeep"), "");
+      expect(isFillableCwd(dir, "src/backend")).toBe(true);
+      writeFileSync(join(dir, "src", "backend", "package.json"), "{}");
+      expect(isFillableCwd(dir, "src/backend")).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

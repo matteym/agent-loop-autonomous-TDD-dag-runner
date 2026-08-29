@@ -32,10 +32,10 @@ describe("detect", () => {
     }
   });
 
-  it("treats a backend/ folder as occupied", () => {
+  it("treats a src/backend folder as occupied", () => {
     const dir = scratch();
     try {
-      mkdirSync(join(dir, "backend"));
+      mkdirSync(join(dir, "src", "backend"), { recursive: true });
       expect(isEmptyTarget(dir)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -46,9 +46,9 @@ describe("detect", () => {
     const dir = scratch();
     try {
       writeFileSync(join(dir, "docker-compose.yml"), "services: {}\n");
-      mkdirSync(join(dir, "backend", "zeub"), { recursive: true });
+      mkdirSync(join(dir, "src", "backend", "zeub"), { recursive: true });
       writeFileSync(
-        join(dir, "backend", "zeub", "package.json"),
+        join(dir, "src", "backend", "zeub", "package.json"),
         JSON.stringify({ scripts: { test: "vitest run" } })
       );
       expect(hasRails(dir)).toBe(true);

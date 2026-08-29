@@ -68,7 +68,7 @@ yarn run init --force --yes
 
 Yarn v1 réserve `yarn init` (wizard `package.json`). Toujours **`yarn run init`**.
 
-Init ne choisit plus langage, archi, ni base. Il crée `backend/`, `frontend/`, un Compose vide, `.env` (`APP_PORT`). Monorepo, microservices, Express, Mongo : `yarn task`. Si une task touche `docker-compose.yml` / `.env.example`, l’orchestrateur synchronise `.env` et relance `docker compose up --build -d`.
+Init is silent: creates `src/backend`, `src/frontend`, empty Compose, `.env` (`APP_PORT`). Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
 
 Sans intent, sur un repo vide : `yarn task` lance l’init puis affiche `next: yarn task "your intent"`.
 
@@ -111,7 +111,7 @@ Queue déjà écrite : `yarn task --dagfile=metadata/dag.json`.
 
 ## UI
 
-ASK, COMPOSE, BOOTSTRAP, puis PLAN, RED, GREEN, UP (Compose si la task l’a touché), GUARD, TEST, COMMIT NOW, ARCHIVE, SKIP, FAIL.
+COMPOSE, BOOTSTRAP, then PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, COMMIT NOW, ARCHIVE, SKIP, FAIL.
 
 ## Interdits (agent)
 

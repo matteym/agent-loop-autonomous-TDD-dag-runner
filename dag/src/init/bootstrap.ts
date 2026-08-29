@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { backendDir, frontendDir } from "./answers.js";
 
 const ignoreLines = [
   ".env",
@@ -42,6 +43,6 @@ function mergeGitignore(repoRoot: string) {
 
 export function writeBootstrap(repoRoot: string): void {
   mergeGitignore(repoRoot);
-  writeFile(join(repoRoot, "backend", ".gitkeep"), "");
-  writeFile(join(repoRoot, "frontend", ".gitkeep"), "");
+  writeFile(join(repoRoot, backendDir, ".gitkeep"), "");
+  writeFile(join(repoRoot, frontendDir, ".gitkeep"), "");
 }

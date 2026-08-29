@@ -1,3 +1,6 @@
+export const backendDir = "src/backend";
+export const frontendDir = "src/frontend";
+
 export type InitAnswers = {
   appPort: number;
 };
@@ -28,5 +31,5 @@ export function validateAnswers(value: unknown): InitAnswers | null {
 }
 
 export function summarize(answers: InitAnswers): string {
-  return "folders=backend,frontend appPort=" + String(answers.appPort);
+  return "folders=" + backendDir + "," + frontendDir + " appPort=" + String(answers.appPort);
 }
