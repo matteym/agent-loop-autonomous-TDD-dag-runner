@@ -23,14 +23,24 @@ describe("renderCompose", () => {
     const yaml = renderCompose(base());
     expect(yaml).toContain("image: postgres:16-alpine");
     expect(yaml).toContain("image: redis:7-alpine");
-    expect(yaml).toContain("build: .");
+    expect(yaml).toContain("build: ./backend");
     expect(yaml).toContain("condition: service_healthy");
     expect(yaml).toContain("pgdata:");
     expect(yaml).toContain("${APP_PORT}:${APP_PORT}");
   });
 
+  it("includes mongodb and neo4j images", () => {
+    const yaml = renderCompose(base({ datastores: ["mongodb", "neo4j"] }));
+    expect(yaml).toContain("image: mongo:7");
+    expect(yaml).toContain("image: neo4j:5-community");
+    expect(yaml).toContain("mongodata:");
+    expect(yaml).toContain("neo4jdata:");
+    expect(yaml).toContain("      mongodb:");
+    expect(yaml).toContain("      neo4j:");
+  });
+
   it("omits databases when none selected", () => {
-    const yaml = renderCompose(base({ postgres: false, redis: false }));
+    const yaml = renderCompose(base({ datastores: [] }));
     expect(yaml).not.toContain("postgres:");
     expect(yaml).not.toContain("redis:");
     expect(yaml).not.toContain("depends_on:");
@@ -38,23 +48,25 @@ describe("renderCompose", () => {
     expect(yaml).toContain("  app:");
   });
 
-  it("uses apps/api build context for monorepo", () => {
+  it("uses backend build context for monorepo", () => {
     const yaml = renderCompose(base({ architecture: "monorepo" }));
-    expect(yaml).toContain("build: ./apps/api");
+    expect(yaml).toContain("build: ./backend");
   });
 
-  it("uses services/api build context for microservices", () => {
-    const yaml = renderCompose(base({ architecture: "microservices" }));
-    expect(yaml).toContain("build: ./services/api");
+  it("uses backend/<name> build context for microservices", () => {
+    const yaml = renderCompose(
+      base({ architecture: "microservices", appName: "zeub" })
+    );
+    expect(yaml).toContain("build: ./backend/zeub");
   });
 
-  it("uses apps/api when both languages on a monolith", () => {
+  it("uses backend when both languages on a monolith", () => {
     const yaml = renderCompose(base({ runtime: "both", architecture: "monolith" }));
-    expect(yaml).toContain("build: ./apps/api");
+    expect(yaml).toContain("build: ./backend");
   });
 
   it("includes only redis when postgres is off", () => {
-    const yaml = renderCompose(base({ postgres: false, redis: true }));
+    const yaml = renderCompose(base({ datastores: ["redis"] }));
     expect(yaml).not.toContain("postgres:");
     expect(yaml).toContain("redis:");
     expect(yaml).toContain("      redis:");

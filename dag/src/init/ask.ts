@@ -11,6 +11,7 @@ import {
   summarize,
   type InitAnswers,
 } from "./answers.js";
+import { storeMenu } from "./stores.js";
 
 async function askLine(
   rl: ReturnType<typeof createInterface>,
@@ -31,8 +32,8 @@ export async function askAnswers(): Promise<InitAnswers | null> {
   try {
     say([
       "",
-      "Agent-loop — 5 questions. Tape 1, 2 ou 3 (Entrée = 1), sauf le nom et le port.",
-      "TypeScript et Python sont les deux OK. Chaque yarn task utilise le runner du package.",
+      "Agent-loop — 5 questions. Tape le numéro (Entrée = défaut entre crochets).",
+      "TypeScript et Python : chaque yarn task utilise le runner du package.",
       "",
     ]);
 
@@ -51,21 +52,7 @@ export async function askAnswers(): Promise<InitAnswers | null> {
 
     say([
       "",
-      "Question 2/5 — Quelle architecture ?",
-      "  1) Monolithe       une app (racine, ou apps/ si les deux langages)",
-      "  2) Monorepo        apps/api",
-      "  3) Microservices   services/api",
-      "",
-    ]);
-    let architecture = parseArchitecture(await askLine(rl, "Ta réponse [1] : "));
-    while (!architecture) {
-      say(["Tape 1, 2 ou 3."]);
-      architecture = parseArchitecture(await askLine(rl, "Ta réponse [1] : "));
-    }
-
-    say([
-      "",
-      "Question 3/5 — Nom de l'application ?",
+      "Question 2/5 — Nom de l'application ?",
       "  Exemple : todo-list   (minuscules et tirets ; todo_list devient todo-list)",
       "",
     ]);
@@ -73,6 +60,21 @@ export async function askAnswers(): Promise<InitAnswers | null> {
     while (!appName) {
       say(["Nom invalide. Exemple : todo-list"]);
       appName = parseSlug(await askLine(rl, "Ta réponse [app] : "), fallback.appName);
+    }
+
+    say([
+      "",
+      "Question 3/5 — Quelle architecture ? (ça décide les dossiers)",
+      "  1) Monolithe       backend/                 une seule API",
+      "  2) Monorepo        backend/ + frontend/",
+      "  3) Microservices   backend/" + appName + "/   premier service",
+      "                     ensuite tu ajoutes backend/autre via yarn task",
+      "",
+    ]);
+    let architecture = parseArchitecture(await askLine(rl, "Ta réponse [1] : "));
+    while (!architecture) {
+      say(["Tape 1, 2 ou 3."]);
+      architecture = parseArchitecture(await askLine(rl, "Ta réponse [1] : "));
     }
 
     say(["", "Question 4/5 — Port HTTP de l'app (APP_PORT) ?", ""]);
@@ -84,16 +86,17 @@ export async function askAnswers(): Promise<InitAnswers | null> {
 
     say([
       "",
-      "Question 5/5 — Quelles bases dans Docker ?",
-      "  1) Postgres + Redis",
-      "  2) Postgres seulement",
-      "  3) Aucune",
+      "Question 5/5 — Quelles bases Docker ?",
+      "  Ce sont des images. Le bot les utilise via les variables d'env (pas d'URL en dur).",
+      "  Plusieurs OK, exemple : 1,3,4",
+      ...storeMenu.map((choice, i) => "  " + (i + 1) + ") " + choice.label),
+      "  0) Aucune",
       "",
     ]);
-    let dbs = parseDatastores(await askLine(rl, "Ta réponse [1] : "));
+    let dbs = parseDatastores(await askLine(rl, "Ta réponse [1,2] : "));
     while (!dbs) {
-      say(["Tape 1, 2 ou 3."]);
-      dbs = parseDatastores(await askLine(rl, "Ta réponse [1] : "));
+      say(["Tape des numéros, ex: 1,3  ou  0 pour aucune."]);
+      dbs = parseDatastores(await askLine(rl, "Ta réponse [1,2] : "));
     }
 
     const answers: InitAnswers = {
@@ -101,8 +104,7 @@ export async function askAnswers(): Promise<InitAnswers | null> {
       architecture,
       appName,
       appPort,
-      postgres: dbs.postgres,
-      redis: dbs.redis,
+      datastores: dbs,
     };
     say([
       "",

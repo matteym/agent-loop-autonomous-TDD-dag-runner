@@ -68,7 +68,7 @@ yarn run init --force --yes
 
 Yarn v1 réserve `yarn init` (wizard `package.json`). Toujours **`yarn run init`**.
 
-Wizard : 5 questions, réponse **1 / 2 / 3** (Entrée = 1). Langage : TypeScript, Python, ou les deux. Architecture : monolithe, monorepo, microservices. Chaque `yarn task` utilise le test runner du package (`yarn test` ou `uv` / pytest).
+Wizard : questions numérotées. Dossiers : monolithe → `backend/` ; monorepo → `backend/` + `frontend/` ; microservices → `backend/<nom>/`. Bases : `1,3,4` = Postgres, Redis, MongoDB, Neo4j, MySQL.
 
 Sans intent, sur un repo vide : `yarn task` lance le wizard puis affiche `next: yarn task "your intent"`.
 

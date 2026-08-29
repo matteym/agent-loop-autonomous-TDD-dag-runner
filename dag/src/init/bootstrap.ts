@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { InitAnswers } from "./answers.js";
-import { appDirRel, hasLang, secondLangDirRel } from "./answers.js";
+import { appDirRel, frontendDirRel, hasLang, secondLangDirRel } from "./answers.js";
 import { log } from "./log.js";
 
 const ignoreLines = [
@@ -287,6 +287,39 @@ function writeTsTree(appRoot: string, name: string) {
   }
 }
 
+function writeFrontTree(appRoot: string, name: string) {
+  writeFile(join(appRoot, "package.json"), tsPackageJson(name));
+  writeFile(join(appRoot, "tsconfig.json"), tsconfigJson());
+  writeFile(join(appRoot, "vitest.config.ts"), vitestConfig());
+  writeFile(
+    join(appRoot, "src", "title.ts"),
+    "export function appTitle(): string {\n  return \"notes\";\n}\n"
+  );
+  writeFile(
+    join(appRoot, "src", "title.test.ts"),
+    [
+      'import { describe, expect, it } from "vitest";',
+      'import { appTitle } from "./title.js";',
+      "",
+      'describe("title", () => {',
+      '  it("returns a label", () => {',
+      '    expect(appTitle()).toBe("notes");',
+      "  });",
+      "});",
+      "",
+    ].join("\n")
+  );
+  const install = spawnSync("yarn", ["install"], {
+    cwd: appRoot,
+    encoding: "utf8",
+    shell: winShell(),
+  });
+  if (install.status !== 0) {
+    log((install.stderr || install.stdout || "yarn install failed").trim());
+    throw new Error("yarn install failed");
+  }
+}
+
 function writePyTree(appRoot: string, name: string) {
   writeFile(join(appRoot, ".dockerignore"), dockerignore());
   writeFile(join(appRoot, "pyproject.toml"), pyproject(name));
@@ -321,6 +354,12 @@ export function writeBootstrap(repoRoot: string, answers: InitAnswers): string {
     const pyRoot = resolveAppRoot(repoRoot, extra);
     mkdirSync(pyRoot, { recursive: true });
     writePyTree(pyRoot, answers.appName + "-py");
+  }
+  const frontRel = frontendDirRel(answers);
+  if (frontRel) {
+    const frontRoot = resolveAppRoot(repoRoot, frontRel);
+    mkdirSync(frontRoot, { recursive: true });
+    writeFrontTree(frontRoot, answers.appName + "-frontend");
   }
   return rel;
 }

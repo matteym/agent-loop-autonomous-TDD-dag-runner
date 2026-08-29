@@ -1,42 +1,18 @@
 import type { InitAnswers } from "./answers.js";
 import { composeBuildContext } from "./answers.js";
+import { composeBlock } from "./stores.js";
 
 export function renderCompose(answers: InitAnswers): string {
   const lines: string[] = ["services:"];
   const depends: string[] = [];
-  if (answers.postgres) {
-    depends.push("postgres");
-    lines.push(
-      "  postgres:",
-      "    image: postgres:16-alpine",
-      '    ports:',
-      '      - "5432:5432"',
-      "    environment:",
-      "      POSTGRES_USER: ${POSTGRES_USER}",
-      "      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
-      "      POSTGRES_DB: ${POSTGRES_DB}",
-      "    volumes:",
-      "      - pgdata:/var/lib/postgresql/data",
-      "    healthcheck:",
-      '      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]',
-      "      interval: 5s",
-      "      timeout: 5s",
-      "      retries: 10"
-    );
-  }
-  if (answers.redis) {
-    depends.push("redis");
-    lines.push(
-      "  redis:",
-      "    image: redis:7-alpine",
-      "    ports:",
-      '      - "6379:6379"',
-      "    healthcheck:",
-      '      test: ["CMD", "redis-cli", "ping"]',
-      "      interval: 5s",
-      "      timeout: 5s",
-      "      retries: 10"
-    );
+  const volumes = new Set<string>();
+  for (const id of answers.datastores) {
+    const block = composeBlock(id);
+    lines.push(...block.lines);
+    depends.push(id);
+    for (const volume of block.volumes) {
+      volumes.add(volume);
+    }
   }
   lines.push(
     "  app:",
@@ -51,8 +27,11 @@ export function renderCompose(answers: InitAnswers): string {
       lines.push("      " + name + ":", "        condition: service_healthy");
     }
   }
-  if (answers.postgres) {
-    lines.push("volumes:", "  pgdata:");
+  if (volumes.size) {
+    lines.push("volumes:");
+    for (const volume of volumes) {
+      lines.push("  " + volume + ":");
+    }
   }
   return lines.join("\n") + "\n";
 }

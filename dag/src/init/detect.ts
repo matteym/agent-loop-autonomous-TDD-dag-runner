@@ -68,6 +68,25 @@ export function hasRails(repoRoot: string): boolean {
   if (dirHasMarker(repoRoot) && hasTestScript(repoRoot)) {
     return true;
   }
+  const backend = join(repoRoot, "backend");
+  if (dirHasMarker(backend) && hasTestScript(backend)) {
+    return true;
+  }
+  if (existsSync(backend)) {
+    try {
+      for (const entry of readdirSync(backend, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+        const child = join(backend, entry.name);
+        if (dirHasMarker(child) && hasTestScript(child)) {
+          return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+  }
   const appsApi = join(repoRoot, "apps", "api");
   if (dirHasMarker(appsApi) && hasTestScript(appsApi)) {
     return true;
@@ -80,7 +99,12 @@ export function isEmptyTarget(repoRoot: string): boolean {
   if (hasCompose(repoRoot)) {
     return false;
   }
-  if (existsSync(join(repoRoot, "apps")) || existsSync(join(repoRoot, "services"))) {
+  if (
+    existsSync(join(repoRoot, "backend")) ||
+    existsSync(join(repoRoot, "frontend")) ||
+    existsSync(join(repoRoot, "apps")) ||
+    existsSync(join(repoRoot, "services"))
+  ) {
     return false;
   }
   if (existsSync(join(repoRoot, "src"))) {

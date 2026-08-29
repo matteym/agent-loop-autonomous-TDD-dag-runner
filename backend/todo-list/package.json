@@ -1,5 +1,5 @@
 {
-  "name": "zeub",
+  "name": "todo-list",
   "private": true,
   "type": "module",
   "scripts": {

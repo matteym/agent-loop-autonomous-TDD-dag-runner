@@ -1,14 +1,16 @@
+import { parseStoreToken, uniqueStores, type StoreId } from "./stores.js";
+
 export type Lang = "ts" | "py";
 export type Runtime = Lang | "both";
 export type Architecture = "monolith" | "monorepo" | "microservices";
+export type { StoreId };
 
 export type InitAnswers = {
   runtime: Runtime;
   architecture: Architecture;
   appName: string;
   appPort: number;
-  postgres: boolean;
-  redis: boolean;
+  datastores: StoreId[];
 };
 
 const slugRe = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -19,8 +21,7 @@ export function defaultAnswers(): InitAnswers {
     architecture: "monolith",
     appName: "app",
     appPort: 3000,
-    postgres: true,
-    redis: true,
+    datastores: ["postgres", "redis"],
   };
 }
 
@@ -85,32 +86,27 @@ export function parsePort(raw: string, fallback: number): number | null {
   return n;
 }
 
-export function parseDatastores(raw: string): { postgres: boolean; redis: boolean } | null {
+export function parseDatastores(raw: string): StoreId[] | null {
   const v = raw.trim().toLowerCase();
-  if (!v || v === "1" || v === "both" || v === "all") {
-    return { postgres: true, redis: true };
-  }
-  if (v === "2") {
-    return { postgres: true, redis: false };
-  }
-  if (v === "3" || v === "none" || v === "0" || v === "no") {
-    return { postgres: false, redis: false };
+  if (!v || v === "default") {
+    return ["postgres", "redis"];
   }
   const parts = v.split(/[,\s]+/).filter(Boolean);
-  let postgres = false;
-  let redis = false;
-  for (const part of parts) {
-    if (part === "postgres" || part === "pg") {
-      postgres = true;
-      continue;
-    }
-    if (part === "redis") {
-      redis = true;
-      continue;
-    }
-    return null;
+  if (!parts.length) {
+    return ["postgres", "redis"];
   }
-  return { postgres, redis };
+  const ids: StoreId[] = [];
+  for (const part of parts) {
+    const token = parseStoreToken(part);
+    if (!token) {
+      return null;
+    }
+    if (token === "none") {
+      return [];
+    }
+    ids.push(token);
+  }
+  return uniqueStores(ids);
 }
 
 export function validateAnswers(value: unknown): InitAnswers | null {
@@ -125,29 +121,50 @@ export function validateAnswers(value: unknown): InitAnswers | null {
   if (!runtime || !architecture || !appName || appPort === null) {
     return null;
   }
-  const postgres = Boolean(rec.postgres);
-  const redis = Boolean(rec.redis);
-  if (rec.postgres === undefined && rec.redis === undefined) {
-    return {
-      runtime,
-      architecture,
-      appName,
-      appPort,
-      postgres: true,
-      redis: true,
-    };
+  const datastores = storesFromRecord(rec);
+  if (!datastores) {
+    return null;
   }
-  return { runtime, architecture, appName, appPort, postgres, redis };
+  return { runtime, architecture, appName, appPort, datastores };
+}
+
+function storesFromRecord(rec: Record<string, unknown>): StoreId[] | null {
+  if (Array.isArray(rec.datastores)) {
+    if (!rec.datastores.length) {
+      return [];
+    }
+    return parseDatastores(rec.datastores.map(String).join(","));
+  }
+  const hasFlags =
+    rec.postgres !== undefined ||
+    rec.redis !== undefined ||
+    rec.mongodb !== undefined ||
+    rec.neo4j !== undefined ||
+    rec.mysql !== undefined;
+  if (!hasFlags) {
+    return ["postgres", "redis"];
+  }
+  const ids: StoreId[] = [];
+  if (rec.postgres) {
+    ids.push("postgres");
+  }
+  if (rec.redis) {
+    ids.push("redis");
+  }
+  if (rec.mongodb) {
+    ids.push("mongodb");
+  }
+  if (rec.neo4j) {
+    ids.push("neo4j");
+  }
+  if (rec.mysql) {
+    ids.push("mysql");
+  }
+  return uniqueStores(ids);
 }
 
 export function summarize(answers: InitAnswers): string {
-  const dbs: string[] = [];
-  if (answers.postgres) {
-    dbs.push("postgres");
-  }
-  if (answers.redis) {
-    dbs.push("redis");
-  }
+  const dbs = answers.datastores;
   const tools =
     answers.runtime === "both"
       ? { test: "vitest+pytest", pkg: "yarn+uv" }
@@ -171,19 +188,23 @@ export function hasLang(answers: InitAnswers, lang: Lang): boolean {
 
 export function appDirRel(answers: InitAnswers): string {
   if (answers.architecture === "microservices") {
-    return "services/api";
+    return "backend/" + answers.appName;
   }
-  if (answers.architecture === "monorepo" || answers.runtime === "both") {
-    return "apps/api";
-  }
-  return ".";
+  return "backend";
+}
+
+export function frontendDirRel(answers: InitAnswers): string | null {
+  return answers.architecture === "monorepo" ? "frontend" : null;
 }
 
 export function secondLangDirRel(answers: InitAnswers): string | null {
   if (answers.runtime !== "both") {
     return null;
   }
-  return answers.architecture === "microservices" ? "services/py" : "apps/py";
+  if (answers.architecture === "microservices") {
+    return "backend/" + answers.appName + "-py";
+  }
+  return "python";
 }
 
 export function composeBuildContext(answers: InitAnswers): string {
@@ -192,8 +213,14 @@ export function composeBuildContext(answers: InitAnswers): string {
 }
 
 export function layoutHint(answers: InitAnswers): string {
-  const primary = appDirRel(answers);
+  const parts = [appDirRel(answers)];
+  const front = frontendDirRel(answers);
+  if (front) {
+    parts.push(front);
+  }
   const extra = secondLangDirRel(answers);
-  const a = primary === "." ? "racine" : primary;
-  return extra ? a + " + " + extra : a;
+  if (extra) {
+    parts.push(extra);
+  }
+  return parts.join(" + ");
 }

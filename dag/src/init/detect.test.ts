@@ -32,23 +32,23 @@ describe("detect", () => {
     }
   });
 
-  it("treats a services/ folder as occupied", () => {
+  it("treats a backend/ folder as occupied", () => {
     const dir = scratch();
     try {
-      mkdirSync(join(dir, "services"));
+      mkdirSync(join(dir, "backend"));
       expect(isEmptyTarget(dir)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("hasRails for microservices api package", () => {
+  it("hasRails for a backend microservice package", () => {
     const dir = scratch();
     try {
       writeFileSync(join(dir, "docker-compose.yml"), "services: {}\n");
-      mkdirSync(join(dir, "services", "api"), { recursive: true });
+      mkdirSync(join(dir, "backend", "zeub"), { recursive: true });
       writeFileSync(
-        join(dir, "services", "api", "package.json"),
+        join(dir, "backend", "zeub", "package.json"),
         JSON.stringify({ scripts: { test: "vitest run" } })
       );
       expect(hasRails(dir)).toBe(true);

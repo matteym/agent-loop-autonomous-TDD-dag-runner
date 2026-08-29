@@ -48,13 +48,15 @@ describe("parseSlug", () => {
 });
 
 describe("parseDatastores", () => {
-  it("accepts both and none", () => {
-    expect(parseDatastores("")).toEqual({ postgres: true, redis: true });
-    expect(parseDatastores("1")).toEqual({ postgres: true, redis: true });
-    expect(parseDatastores("2")).toEqual({ postgres: true, redis: false });
-    expect(parseDatastores("3")).toEqual({ postgres: false, redis: false });
-    expect(parseDatastores("postgres")).toEqual({ postgres: true, redis: false });
-    expect(parseDatastores("none")).toEqual({ postgres: false, redis: false });
+  it("accepts numbered multi-select and names", () => {
+    expect(parseDatastores("")).toEqual(["postgres", "redis"]);
+    expect(parseDatastores("1")).toEqual(["postgres"]);
+    expect(parseDatastores("1,2")).toEqual(["postgres", "redis"]);
+    expect(parseDatastores("3,4")).toEqual(["mongodb", "neo4j"]);
+    expect(parseDatastores("mongo neo4j")).toEqual(["mongodb", "neo4j"]);
+    expect(parseDatastores("0")).toEqual([]);
+    expect(parseDatastores("none")).toEqual([]);
+    expect(parseDatastores("oracle")).toBeNull();
   });
 });
 
@@ -63,13 +65,15 @@ describe("layout paths", () => {
     const mono = validateAnswers({ architecture: "monolith" });
     const repo = validateAnswers({ architecture: "monorepo" });
     const micro = validateAnswers({ architecture: "microservices" });
-    expect(mono && appDirRel(mono)).toBe(".");
-    expect(repo && appDirRel(repo)).toBe("apps/api");
-    expect(micro && appDirRel(micro)).toBe("services/api");
-    expect(micro && composeBuildContext(micro)).toBe("./services/api");
+    expect(mono && appDirRel(mono)).toBe("backend");
+    expect(repo && appDirRel(repo)).toBe("backend");
+    expect(micro && appDirRel(micro)).toBe("backend/app");
+    expect(micro && composeBuildContext(micro)).toBe("./backend/app");
+    const named = validateAnswers({ architecture: "microservices", appName: "zeub" });
+    expect(named && appDirRel(named)).toBe("backend/zeub");
     const both = validateAnswers({ runtime: "both", architecture: "monolith" });
-    expect(both && appDirRel(both)).toBe("apps/api");
-    expect(both && composeBuildContext(both)).toBe("./apps/api");
-    expect(both && secondLangDirRel(both)).toBe("apps/py");
+    expect(both && appDirRel(both)).toBe("backend");
+    expect(both && composeBuildContext(both)).toBe("./backend");
+    expect(both && secondLangDirRel(both)).toBe("python");
   });
 });
