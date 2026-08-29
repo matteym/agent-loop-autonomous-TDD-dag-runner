@@ -5,10 +5,9 @@ import { defaultAnswers, summarize, validateAnswers, type InitAnswers } from "./
 import { writeBootstrap } from "./bootstrap.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
-import { randomPassword, renderEnv } from "./env.js";
+import { renderEnv } from "./env.js";
 import { commitRails } from "./git.js";
 import { log, phase } from "./log.js";
-import { composeUp } from "./up.js";
 import {
   metadataDir,
   metadataInitDefaultsPath,
@@ -71,7 +70,7 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
     }
   }
 
-  phase("ASK", "language layout name port databases");
+  phase("ASK", "backend/ frontend/ only");
   let answers: InitAnswers | null;
   if (opts.nonInteractive) {
     answers = loadNonInteractiveAnswers();
@@ -93,19 +92,16 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   writeFileSync(metadataInitLastPath, JSON.stringify(answers, null, 2) + "\n");
 
   phase("COMPOSE", "docker-compose.yml .env");
-  const env = renderEnv(answers, randomPassword());
-  writeFileSync(join(repoRoot, "docker-compose.yml"), renderCompose(answers));
+  const env = renderEnv(answers);
+  writeFileSync(join(repoRoot, "docker-compose.yml"), renderCompose());
   writeFileSync(join(repoRoot, ".env"), env.dotenv);
   writeFileSync(join(repoRoot, ".env.example"), env.example);
   log("wrote .env (keys only) " + env.keys.join(","));
 
-  phase("BOOTSTRAP", answers.runtime + " " + answers.architecture);
-  writeBootstrap(repoRoot, answers);
+  phase("BOOTSTRAP", "backend/ frontend/");
+  writeBootstrap(repoRoot);
   commitRails(repoRoot);
 
-  phase("UP", "docker compose up --build -d");
-  await composeUp(repoRoot, answers.appPort);
-  phase("UP", "healthy");
   log('next: cd dag && yarn task "your first feature"');
   return { status: "ok" };
 }

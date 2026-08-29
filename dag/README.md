@@ -64,18 +64,18 @@ yarn run init --yes
 yarn run init --force --yes
 ```
 
-`--yes` lit `metadata/init.defaults.json` (ou des défauts). Sans TTY, passer `--yes`. `--force` écrase un repo non vide / `Server/src`.
+`--yes` confirme sans TTY. `--force` écrase un repo non vide / `Server/src`.
 
 Yarn v1 réserve `yarn init` (wizard `package.json`). Toujours **`yarn run init`**.
 
-Wizard : questions numérotées. Dossiers : monolithe → `backend/` ; monorepo → `backend/` + `frontend/` ; microservices → `backend/<nom>/`. Bases : `1,3,4` = Postgres, Redis, MongoDB, Neo4j, MySQL.
+Init ne choisit plus langage, archi, ni base. Il crée `backend/`, `frontend/`, un Compose vide, `.env` (`APP_PORT`). Monorepo, microservices, Express, Mongo : `yarn task`. Si une task touche `docker-compose.yml` / `.env.example`, l’orchestrateur synchronise `.env` et relance `docker compose up --build -d`.
 
-Sans intent, sur un repo vide : `yarn task` lance le wizard puis affiche `next: yarn task "your intent"`.
+Sans intent, sur un repo vide : `yarn task` lance l’init puis affiche `next: yarn task "your intent"`.
 
 ## Prérequis
 
 - Node et `yarn` dans `dag/`
-- Docker pour l’étape UP de `yarn run init`
+- Docker pour le relance Compose après une `yarn task` qui ajoute un service
 - Une clé Cursor et/ou Claude (jamais loggée)
 - Branche ≠ `main` / `master` (sinon EXIT 1)
 - Working tree propre, hors artefacts runtime (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `init.last.json`, `history/`, `logs/*.log`)
@@ -111,7 +111,7 @@ Queue déjà écrite : `yarn task --dagfile=metadata/dag.json`.
 
 ## UI
 
-ASK, COMPOSE, BOOTSTRAP, UP, puis PLAN, RED, GREEN, GUARD, TEST, COMMIT NOW, ARCHIVE, SKIP, FAIL.
+ASK, COMPOSE, BOOTSTRAP, puis PLAN, RED, GREEN, UP (Compose si la task l’a touché), GUARD, TEST, COMMIT NOW, ARCHIVE, SKIP, FAIL.
 
 ## Interdits (agent)
 

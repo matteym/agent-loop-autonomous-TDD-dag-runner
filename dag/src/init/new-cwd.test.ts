@@ -1,7 +1,28 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isAllowedNewTestSpec, isSafeNewCwd, normalizeRelCwd } from "../new-cwd.js";
+import {
+  isAllowedNewTestSpec,
+  isFillableCwd,
+  isSafeNewCwd,
+  normalizeRelCwd,
+} from "../new-cwd.js";
 
 describe("new cwd", () => {
+  it("treats empty backend as fillable", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-cwd-"));
+    try {
+      mkdirSync(join(dir, "backend"), { recursive: true });
+      writeFileSync(join(dir, "backend", ".gitkeep"), "");
+      expect(isFillableCwd(dir, "backend")).toBe(true);
+      writeFileSync(join(dir, "backend", "package.json"), "{}");
+      expect(isFillableCwd(dir, "backend")).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("accepts Client and apps/mobile", () => {
     expect(normalizeRelCwd("Client")).toBe("Client");
     expect(normalizeRelCwd("apps/mobile")).toBe("apps/mobile");

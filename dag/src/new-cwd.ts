@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 const blockedSegments = new Set([
   "dag",
   "node_modules",
@@ -42,6 +45,18 @@ export function normalizeRelCwd(raw: string): string | null {
 
 export function isSafeNewCwd(raw: string): boolean {
   return normalizeRelCwd(raw) !== null;
+}
+
+export function isFillableCwd(repoRoot: string, raw: string): boolean {
+  const safe = normalizeRelCwd(raw);
+  if (!safe) {
+    return false;
+  }
+  const abs = join(repoRoot, safe);
+  if (!existsSync(abs)) {
+    return true;
+  }
+  return !existsSync(join(abs, "package.json")) && !existsSync(join(abs, "pyproject.toml"));
 }
 
 export function isAllowedNewTestSpec(cmd: string, args: string[]): boolean {

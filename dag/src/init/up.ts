@@ -1,18 +1,30 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { syncEnvFromExample } from "./env-sync.js";
 import { log } from "./log.js";
 
 function winShell(): boolean {
   return process.platform === "win32";
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+export function composeHasRealServices(repoRoot: string): boolean {
+  const path = join(repoRoot, "docker-compose.yml");
+  if (!existsSync(path)) {
+    return false;
+  }
+  const raw = readFileSync(path, "utf8");
+  return /^\s{2}[a-zA-Z][a-zA-Z0-9_-]*:\s*$/m.test(raw);
 }
 
-export async function composeUp(repoRoot: string, appPort: number) {
+export function composeReload(repoRoot: string): { ok: boolean; output: string } {
+  const added = syncEnvFromExample(repoRoot);
+  if (added.length) {
+    log("synced .env keys from .env.example: " + added.join(","));
+  }
+  if (!composeHasRealServices(repoRoot)) {
+    return { ok: true, output: "compose has no services yet" };
+  }
   const compose = spawnSync(
     "docker",
     [
@@ -32,29 +44,11 @@ export async function composeUp(repoRoot: string, appPort: number) {
       timeout: 180000,
     }
   );
+  const output = ((compose.stdout || "") + (compose.stderr || "")).trim();
   if (compose.status !== 0) {
-    const err = (compose.stderr || compose.stdout || "docker compose failed").trim();
-    log(err);
-    if (/docker/i.test(err) && /not found|cannot connect|daemon/i.test(err)) {
-      throw new Error("docker daemon is not running; start Docker Desktop and retry");
-    }
-    throw new Error("docker compose up --build -d failed");
+    log(output || "docker compose failed");
+    return { ok: false, output: output || "docker compose up --build -d failed" };
   }
-  const url = "http://127.0.0.1:" + String(appPort) + "/health";
-  for (let i = 0; i < 20; i++) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        const body = (await res.json()) as { ok?: boolean };
-        if (body.ok === true) {
-          return;
-        }
-      }
-    } catch {
-      await sleep(500);
-      continue;
-    }
-    await sleep(500);
-  }
-  throw new Error("health check failed after compose up");
+  log("compose reloaded");
+  return { ok: true, output };
 }

@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 import { gitAuthorEmail, gitAuthorName } from "./git-author.js";
+import { composeReload } from "./init/up.js";
 import { createPullRequest } from "./pr.js";
 import type { ProviderName } from "./cli.js";
 import {
@@ -32,6 +33,7 @@ import type { Dag, Task, TestSpec } from "./types.js";
 type Phase =
   | "RED"
   | "GREEN"
+  | "UP"
   | "GUARD"
   | "TEST"
   | "COMMIT NOW"
@@ -450,7 +452,20 @@ function runGuard(): { ok: boolean; output: string } {
   return { ok: true, output };
 }
 
+function applyInfra(): { ok: boolean; output: string } {
+  const diff = runGit(["diff", "HEAD", "--", "docker-compose.yml", ".env.example"]);
+  if (!(diff.stdout || "").trim()) {
+    return { ok: true, output: "infra unchanged" };
+  }
+  phase("UP", "docker compose up --build -d");
+  return composeReload(repoRoot);
+}
+
 function validateNode(tests: TestSpec[]): { ok: boolean; output: string } {
+  const infra = applyInfra();
+  if (!infra.ok) {
+    return infra;
+  }
   const guard = runGuard();
   if (!guard.ok) {
     return guard;
@@ -648,7 +663,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         agent,
         "DAG node " +
           task.id +
-          " TDD GREEN. Implement minimal production code for this ticket. Do not commit.\n" +
+          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in backend/ and UI in frontend/. If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
           task.prompt,
         task
       );

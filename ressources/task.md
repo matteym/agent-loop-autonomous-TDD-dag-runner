@@ -6,7 +6,7 @@ Commande à coller (depuis `dag/`, pas de `--dagfile`) :
 yarn task "Build a minimal full-stack notes app with an Express backend and a simple frontend to CRUD notes. Serve the UI from Express on process.env.APP_PORT so one process exposes both local URLs: frontend GET / and API /api/notes. Do not hardcode localhost in application source. Add a start note that prints both URLs from APP_PORT. yarn test on this package. No git push."
 ```
 
-Hors caméra : `yarn run init --yes` (APP_PORT=3000, compose up).
+Hors caméra : `yarn run init --yes` (crée `backend/` + `frontend/` vides, pas de service). L’archi et les bases viennent de ce `yarn task`.
 
 ## Pourquoi cette phrase (pas la version courte)
 

@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { hasCompose, isEmptyTarget } from "./init/detect.js";
 import { runInit } from "./init/run.js";
 import { runLoop } from "./loop.js";
-import { isAllowedNewTestSpec, normalizeRelCwd } from "./new-cwd.js";
+import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
 import { metadataDagPath, metadataDir, metadataTaskPath, repoRoot } from "./paths.js";
 import { createAgentHandle } from "./providers/create.js";
 import { resolveProvider } from "./providers/select.js";
@@ -220,7 +220,7 @@ function validateDag(dag: Dag, packages: Pkg[]): string | null {
       if (!safe) {
         return task.id + " unsafe new cwd: " + spec.cwd;
       }
-      if (existsSync(join(repoRoot, safe))) {
+      if (existsSync(join(repoRoot, safe)) && !isFillableCwd(repoRoot, safe)) {
         return task.id + " cwd exists but is not an inventoried package: " + spec.cwd;
       }
       if (!isAllowedNewTestSpec(spec.cmd, spec.args)) {
@@ -265,7 +265,9 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "id kebab from intent. commit must match feat|fix|refactor|perf|test|docs|style|chore|build|ci(scope)?: lowercase subject, no period. Copy style from git log.",
     "tests.cwd must be one inventory path. tests.cmd/args must equal that package's listed test command.",
     "If a package has no-test-script you may not point tests at it unless id is scaffold with tests [] and allowEmptyCommit true.",
-    "If the intent creates a package missing from inventory (example Client/), emit a task with that relative cwd, optionalCwd true, and tests yarn test (python: uv run python -m pytest -q). The folder must not exist yet. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths. The node must create the package AND a test script; the runner fails if the folder is still missing after GREEN. Do not use empty tests for that. Inventoried packages must use their listed test command and must not set optionalCwd.",
+    "Init only created empty backend/ and frontend/ folders. Put API code under backend/ or backend/<service> if the intent is multiple services. Put UI under frontend/. Monorepo vs microservices is decided by THIS intent, not init.",
+    "If a package is missing from inventory (backend/, frontend/, backend/billing), emit a task with that relative cwd, optionalCwd true, and tests yarn test (python: uv run python -m pytest -q). Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths. The node must create the package AND a test script. Inventoried packages must use their listed test command and must not set optionalCwd.",
+    "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy patterns from dag/src/init/stores.ts. The orchestrator syncs .env and runs docker compose up --build -d.",
     "Each prompt = the human intent scoped to that package only. Append: only this package. Use env for DB/API URLs, never hardcode, never commit .env.",
     "Forbidden: .env in git, git push, --no-verify, terraform apply, fallback-secret, hardcoded localhost in app source, Playwright, Detox.",
     "Inventory:",
