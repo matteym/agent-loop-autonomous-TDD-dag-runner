@@ -1,0 +1,20 @@
+{
+  "title": "greenfield example",
+  "model": "composer-2.5",
+  "greenfield": true,
+  "languages": ["ts"],
+  "test": {
+    "cmd": "yarn",
+    "args": ["test"]
+  },
+  "constraints": ["no git push", "no cookies"],
+  "nodes": [
+    {
+      "id": "hello-api",
+      "commit": "feat(api): add hello route",
+      "prompt": "After scaffold, add a minimal hello HTTP route and make the failing test pass.",
+      "testCwd": "REPLACE_ME/packages/api",
+      "optionalCwd": true
+    }
+  ]
+}

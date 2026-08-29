@@ -1,0 +1,31 @@
+{
+  "title": "backend feature extensions",
+  "model": "composer-2.5",
+  "cwd": "..",
+  "tasks": [
+    {
+      "id": "terrain-image-upload",
+      "commit": "feat(facilities): upload terrain image to gcp bucket",
+      "tests": [
+        { "cwd": "Server/src/facilities", "cmd": "yarn", "args": ["test"] }
+      ],
+      "prompt": "Only Server/src/facilities (port 3001). Add an authenticated route to upload one sports terrain image plus metadata to GCP Cloud Storage Standard europe-west1. Bucket from process.env.GCP_BUCKET_NAME. Credentials from GOOGLE_APPLICATION_CREDENTIALS already used locally; do not commit Server/app-storage-service-account-key.json or any .env. Copy Bearer JWT verify from Server/src/profile/middlewares/auth.middleware.ts (userId number). Do not create Server/src/storage. Mock GCS in jest. No git push."
+    },
+    {
+      "id": "chat-media-upload",
+      "commit": "feat(chat): upload photo and video to gcp bucket",
+      "tests": [
+        { "cwd": "Server/src/chat", "cmd": "yarn", "args": ["test"] }
+      ],
+      "prompt": "Only Server/src/chat. Keep Socket.IO, Redis, and BullMQ. Add HTTP upload for photo and video to the same GCP bucket env as facilities (GCP_BUCKET_NAME, GOOGLE_APPLICATION_CREDENTIALS). After upload, existing socket flow may reference the stored object URL; do not replace sockets with a new chat stack. Bearer/socket-auth stays JWT { userId: number }. Do not add Firebase, Playwright, Detox, or hardcoded localhost URLs. Do not commit secrets. Mock GCS in jest. No git push."
+    },
+    {
+      "id": "chat-likes-ephemeral",
+      "commit": "feat(chat): add message likes and redis ttl expiry",
+      "tests": [
+        { "cwd": "Server/src/chat", "cmd": "yarn", "args": ["test"] }
+      ],
+      "prompt": "Only Server/src/chat. Add likes for text, photo, and video messages on the existing Socket.IO gateway. Ephemeral deletion: Redis TTL from process.env.CHAT_EPHEMERAL_TTL_HOURS, default 24 hours, including stored media object references. Keep BullMQ workers. Do not add a second broker. Extend Server/src/chat jest tests. No cookies. No git push."
+    }
+  ]
+}

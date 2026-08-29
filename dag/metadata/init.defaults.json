@@ -1,0 +1,8 @@
+{
+  "runtime": "ts",
+  "architecture": "monolith",
+  "appName": "app",
+  "appPort": 3000,
+  "postgres": true,
+  "redis": true
+}
