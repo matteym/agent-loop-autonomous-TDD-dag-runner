@@ -11,7 +11,11 @@ async function main() {
   }
   const cli = parsed.value;
   if (cli.command === "init") {
-    const result = await runInit({ force: cli.force, nonInteractive: cli.yes });
+    const result = await runInit({
+      force: cli.force,
+      nonInteractive: cli.yes,
+      remote: cli.remote,
+    });
     if (result.status === "ok" || result.status === "aborted") {
       process.exit(0);
     }

@@ -3,7 +3,45 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { commitRails, missingGitIdentityHint, railsCommitSubject } from "./git.js";
+import {
+  commitRails,
+  missingGitIdentityHint,
+  parseGithubRemote,
+  railsCommitSubject,
+  setOriginRemote,
+} from "./git.js";
+
+describe("parseGithubRemote", () => {
+  it("accepts https and ssh github urls", () => {
+    expect(parseGithubRemote("https://github.com/acme/notes")).toBe(
+      "https://github.com/acme/notes.git"
+    );
+    expect(parseGithubRemote("git@github.com:acme/notes.git")).toBe(
+      "git@github.com:acme/notes.git"
+    );
+    expect(parseGithubRemote("https://gitlab.com/acme/notes.git")).toBeNull();
+  });
+});
+
+describe("setOriginRemote", () => {
+  it("adds origin and refuses a silent replace", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-remote-"));
+    try {
+      expect(spawnSync("git", ["init"], { cwd: dir }).status).toBe(0);
+      const added = setOriginRemote(dir, "https://github.com/acme/notes", false);
+      expect(added.ok).toBe(true);
+      const clash = setOriginRemote(dir, "https://github.com/acme/other", false);
+      expect(clash.ok).toBe(false);
+      const replaced = setOriginRemote(dir, "https://github.com/acme/other", true);
+      expect(replaced.ok).toBe(true);
+      if (replaced.ok) {
+        expect(replaced.url).toBe("https://github.com/acme/other.git");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("commitRails", () => {
   it("refuses to invent a git author", () => {

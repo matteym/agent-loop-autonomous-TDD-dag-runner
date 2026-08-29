@@ -5,13 +5,19 @@ import { writeBootstrap } from "./bootstrap.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
 import { renderEnv } from "./env.js";
-import { commitRails, hasGitIdentity, missingGitIdentityHint } from "./git.js";
+import {
+  commitRails,
+  hasGitIdentity,
+  missingGitIdentityHint,
+  setOriginRemote,
+} from "./git.js";
 import { log, phase } from "./log.js";
 import { metadataInitDefaultsPath, repoRoot } from "../paths.js";
 
 export type InitOpts = {
   force?: boolean;
   nonInteractive?: boolean;
+  remote?: string;
 };
 
 export type InitResult =
@@ -78,6 +84,18 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   writeBootstrap(repoRoot);
   commitRails(repoRoot);
 
+  if (opts.remote) {
+    phase("REMOTE", opts.remote);
+    const linked = setOriginRemote(repoRoot, opts.remote, opts.force);
+    if (!linked.ok) {
+      return { status: "refused", reason: linked.reason };
+    }
+    log("origin=" + linked.url + " (not pushed)");
+    log('next: git push -u origin HEAD && yarn task "your first feature"');
+    return { status: "ok" };
+  }
+
+  log("no GitHub remote; pass --remote=https://github.com/OWNER/REPO.git");
   log('next: yarn task "your first feature"');
   return { status: "ok" };
 }

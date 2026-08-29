@@ -26,6 +26,55 @@ export function requireGitIdentity(repoRoot: string): void {
   }
 }
 
+export function parseGithubRemote(raw: string): string | null {
+  const t = raw.trim();
+  const https = t.match(
+    /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/
+  );
+  if (https) {
+    return "https://github.com/" + https[1] + "/" + https[2] + ".git";
+  }
+  const ssh = t.match(
+    /^git@github\.com:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/
+  );
+  if (ssh) {
+    return "git@github.com:" + ssh[1] + "/" + ssh[2] + ".git";
+  }
+  return null;
+}
+
+export function setOriginRemote(
+  repoRoot: string,
+  url: string,
+  force: boolean | undefined
+): { ok: true; url: string } | { ok: false; reason: string } {
+  const parsed = parseGithubRemote(url);
+  if (!parsed) {
+    return {
+      ok: false,
+      reason: "remote must be https://github.com/OWNER/REPO or git@github.com:OWNER/REPO.git",
+    };
+  }
+  const existing = (git(repoRoot, ["remote", "get-url", "origin"]).stdout || "").trim();
+  if (existing && existing !== parsed && !force) {
+    return {
+      ok: false,
+      reason: "origin already points to " + existing + "; use --force to replace",
+    };
+  }
+  const args = existing
+    ? ["remote", "set-url", "origin", parsed]
+    : ["remote", "add", "origin", parsed];
+  const result = git(repoRoot, args);
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      reason: (result.stderr || result.stdout || "git remote failed").trim(),
+    };
+  }
+  return { ok: true, url: parsed };
+}
+
 export function commitRails(repoRoot: string) {
   requireGitIdentity(repoRoot);
   const inside = git(repoRoot, ["rev-parse", "--is-inside-work-tree"]);

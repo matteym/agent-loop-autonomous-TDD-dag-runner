@@ -35,6 +35,8 @@ Uniquement :
 | `--allow-pull-request` | si tous les nœuds EXIT 0 et branche ≠ `main`/`master` : `git push -u origin HEAD` puis `gh pr create` (jamais `--force`, jamais `--no-verify`) |
 | `--provider=cursor\|claude` | force le runtime ; sinon détection automatique |
 
+`yarn run init` accepte aussi `--remote=<github-url>` (voir Init).
+
 Exemples :
 
 ```bash
@@ -59,11 +61,12 @@ Pas de variables `DAG_*`.
 
 ```bash
 yarn run init
+yarn run init --remote=https://github.com/OWNER/REPO.git
 yarn run init --yes
 yarn run init --force --yes
 ```
 
-`--yes` confirme sans TTY. `--force` écrase un repo non vide / `Server/src`.
+`--yes` confirme sans TTY. `--force` écrase un repo non vide / `Server/src`, et remplace `origin` s’il existe déjà. `--remote` pose `origin` (GitHub https ou ssh) ; **aucun `git push`**. Sans `--remote`, le repo reste local.
 
 Yarn v1 réserve `yarn init` (wizard `package.json`). Toujours **`yarn run init`**.
 

@@ -8,6 +8,7 @@ export type ParsedCli = {
   yes: boolean;
   intent: string;
   dagfile?: string;
+  remote?: string;
   allowPullRequest: boolean;
   provider?: ProviderName;
 };
@@ -44,6 +45,7 @@ export function parseArgv(argv: string[]): ParseResult {
     "--yes",
     "--allow-pull-request",
     "--dagfile",
+    "--remote",
     "--provider",
   ]);
   for (const arg of rest) {
@@ -51,7 +53,7 @@ export function parseArgv(argv: string[]): ParseResult {
       continue;
     }
     const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
-    if (name === "--dagfile" || name === "--provider") {
+    if (name === "--dagfile" || name === "--remote" || name === "--provider") {
       continue;
     }
     if (!known.has(name)) {
@@ -71,7 +73,10 @@ export function parseArgv(argv: string[]): ParseResult {
       if (arg.startsWith("-")) {
         return false;
       }
-      if (i > 0 && (all[i - 1] === "--dagfile" || all[i - 1] === "--provider")) {
+      if (
+        i > 0 &&
+        (all[i - 1] === "--dagfile" || all[i - 1] === "--remote" || all[i - 1] === "--provider")
+      ) {
         return false;
       }
       return true;
@@ -86,6 +91,7 @@ export function parseArgv(argv: string[]): ParseResult {
       yes: rest.includes("--yes"),
       intent,
       dagfile: readFlagValue(rest, "--dagfile"),
+      remote: readFlagValue(rest, "--remote"),
       allowPullRequest: rest.includes("--allow-pull-request"),
       provider,
     },

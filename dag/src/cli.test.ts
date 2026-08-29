@@ -22,7 +22,12 @@ describe("parseArgv", () => {
   });
 
   it("parses init flags", () => {
-    const parsed = parseArgv(["init", "--force", "--yes"]);
+    const parsed = parseArgv([
+      "init",
+      "--force",
+      "--yes",
+      "--remote=https://github.com/acme/notes.git",
+    ]);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) {
       return;
@@ -30,6 +35,7 @@ describe("parseArgv", () => {
     expect(parsed.value.command).toBe("init");
     expect(parsed.value.force).toBe(true);
     expect(parsed.value.yes).toBe(true);
+    expect(parsed.value.remote).toBe("https://github.com/acme/notes.git");
   });
 
   it("parses space-separated --dagfile and --provider", () => {
