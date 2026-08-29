@@ -395,7 +395,7 @@ Montre 15 s le tableau Owns / Never dans `.cursor/skills/agent-loop/SKILL.md`.
 
 `task.ts` — `buildPlannerPrompt` / `validateDag`.
 
-> Premier send : PLAN ONLY, zéro fichier produit. Un JSON : 1 à 5 tasks, id kebab, commit `feat(scope): subject` minuscule sans point. Tests = la commande de l’inventaire. Écrit `task.json`, enchaîne `runLoop`.
+> Premier send : PLAN ONLY, zéro fichier produit. Un JSON : 1 à 10 features, id kebab, commit `feat(scope): subject` minuscule sans point. Tests = la commande de l’inventaire. Écrit `task.json`, enchaîne `runLoop`.
 >
 > Si le JSON est mauvais (cwd hors inventaire, mauvais `yarn test`), le planner est rejeté avant de coder. C’est pour ça que la phrase est précise : Express, frontend, CRUD notes — pas « une super app ».
 

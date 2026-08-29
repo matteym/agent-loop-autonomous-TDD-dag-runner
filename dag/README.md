@@ -19,8 +19,8 @@ Yarn v1 réserve `yarn init`. Utiliser **`yarn run init`**.
 
 | Commande | Rôle |
 |---|---|
-| `yarn run init` | wizard greenfield (compose, code, `docker compose up --build -d`) |
-| `yarn task "…"` | intention → plan LLM → boucle TDD |
+| `yarn run init` | silent rails: `src/backend`, `src/frontend`, empty Compose, `.env` |
+| `yarn task "…"` | intent → plan (max 10 features) → TDD loop |
 | `yarn test` | tests unitaires du moteur (`vitest run`) |
 
 `yarn tsc --noEmit` typecheck le moteur.
@@ -39,8 +39,7 @@ Exemples :
 
 ```bash
 yarn task "Ajouter la route de login avec JWT sur l'API"
-yarn task --dagfile=metadata/dag.json --provider=cursor
-yarn task --dagfile=src/templates/brief.brownfield.example.json --allow-pull-request
+yarn task --dagfile=path/to/your-dag.json --provider=cursor
 ```
 
 `--dagfile` accepte aussi `--dagfile path`. Intent ignoré si `--dagfile` est présent.
@@ -70,6 +69,8 @@ Yarn v1 réserve `yarn init` (wizard `package.json`). Toujours **`yarn run init`
 
 Init is silent: creates `src/backend`, `src/frontend`, empty Compose, `.env` (`APP_PORT`). Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
 
+Languages (planner + tests): TypeScript/JS (`yarn test`), Python (`uv` + pytest), Go (`go test ./...`), Rust (`cargo test`). The planner must pick the runner from the intent (FastAPI → Python, not `yarn test`).
+
 Sans intent, sur un repo vide : `yarn task` lance l’init puis affiche `next: yarn task "your intent"`.
 
 ## Prérequis
@@ -78,7 +79,8 @@ Sans intent, sur un repo vide : `yarn task` lance l’init puis affiche `next: y
 - Docker pour le relance Compose après une `yarn task` qui ajoute un service
 - Une clé Cursor et/ou Claude (jamais loggée)
 - Branche ≠ `main` / `master` (sinon EXIT 1)
-- Working tree propre, hors artefacts runtime (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `init.last.json`, `history/`, `logs/*.log`)
+- Working tree propre, hors artefacts runtime (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`)
+- `git config user.name` et `user.email` **dans ce repo** (les commits n’inventent pas d’auteur). Sans ça, `yarn run init` et `yarn task` s’arrêtent avant le commit.
 
 `--allow-pull-request` exige `gh`. Échec propre si `gh` est absent ou si le push rate. Interdit sur `main` / `master`.
 
@@ -88,14 +90,11 @@ Sans intent, sur un repo vide : `yarn task` lance l’init puis affiche `next: y
 |---|---|
 | `run-dag-loop.ts` | entrée CLI (`init` / `task`) |
 | `src/` | moteur, providers, tests |
-| `src/templates/` | exemples de DAG JSON |
-| `metadata/dag.json` | queue expert / CI (versionnée) |
-| `metadata/init.defaults.json` | réponses `--yes` (versionnée) |
+| `metadata/init.defaults.json` | `APP_PORT` pour `--yes` (versionné) |
 | `metadata/task.json` | DAG généré par le planner (gitignoré) |
 | `metadata/*.done.json` | nœuds archivés (gitignoré) |
 | `metadata/state.json` | ids déjà faits (gitignoré) |
 | `metadata/agent-id` | id agent du run (gitignoré) |
-| `metadata/init.last.json` | dernières réponses wizard (gitignoré) |
 | `history/nodes.jsonl` | une ligne JSON par nœud (gitignoré) |
 | `logs/` | `run-YYYYMMDD-HHmmss.log` et `failures.log` (gitignoré) |
 
@@ -107,7 +106,7 @@ Copier `dag/` et `.cursor/` (skill, rule, hooks). `git init`. Puis `cd dag && ya
 
 Brownfield : `yarn task "…"`. Un package absent de l’inventaire (ex. `Client/`) peut avoir `optionalCwd` + `yarn test` ; après GREEN le dossier doit exister et les tests doivent passer.
 
-Queue déjà écrite : `yarn task --dagfile=metadata/dag.json`.
+Queue déjà écrite : `yarn task --dagfile=path/to/your-dag.json`.
 
 ## UI
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderCompose } from "./compose.js";
+import { composeBlock, renderCompose } from "./compose.js";
 import { composeHasRealServices } from "./up.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ describe("renderCompose", () => {
     expect(yaml).toContain("services: {}");
     expect(yaml).not.toContain("postgres:");
     expect(yaml).not.toContain("build:");
+    expect(composeBlock("redis").lines.join("\n")).toContain("redis:");
   });
 });
 

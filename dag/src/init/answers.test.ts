@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultAnswers, parsePort, summarize, validateAnswers } from "./answers.js";
+import { defaultAnswers, parsePort, validateAnswers } from "./answers.js";
 
 describe("validateAnswers", () => {
   it("keeps only appPort and ignores old wizard fields", () => {
@@ -11,7 +11,6 @@ describe("validateAnswers", () => {
     });
     expect(parsed).toEqual({ appPort: 3000 });
     expect(defaultAnswers()).toEqual({ appPort: 3000 });
-    expect(summarize({ appPort: 4000 })).toContain("4000");
   });
 });
 

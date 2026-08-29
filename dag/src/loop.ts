@@ -8,7 +8,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
-import { gitAuthorEmail, gitAuthorName } from "./git-author.js";
+import { inventoryMarkers } from "./inventory.js";
+import { missingGitIdentityHint, requireGitIdentity } from "./init/git.js";
 import { composeReload } from "./init/up.js";
 import { createPullRequest } from "./pr.js";
 import type { ProviderName } from "./cli.js";
@@ -60,12 +61,6 @@ const skipWalkNames = new Set([
   "logs",
   "dag",
 ]);
-const inventoryMarkers = [
-  "package.json",
-  "pyproject.toml",
-  "go.mod",
-  "Cargo.toml",
-];
 const maxFixRounds = 5;
 const maxRedAttempts = 2;
 
@@ -384,15 +379,7 @@ function orchestratorCommit(message: string, allowEmpty: boolean | undefined): b
     log("commit aborted: staged blocked path");
     return false;
   }
-  const commit = runGit([
-    "-c",
-    "user.name=" + gitAuthorName,
-    "-c",
-    "user.email=" + gitAuthorEmail,
-    "commit",
-    "-m",
-    message,
-  ]);
+  const commit = runGit(["commit", "-m", message]);
   if (commit.status === 0) {
     log("committed " + message);
     return true;
@@ -533,8 +520,7 @@ function isControlledDirty(file: string): boolean {
   if (
     n === "dag/metadata/state.json" ||
     n === "dag/metadata/task.json" ||
-    n === "dag/metadata/agent-id" ||
-    n === "dag/metadata/init.last.json"
+    n === "dag/metadata/agent-id"
   ) {
     return true;
   }
@@ -548,6 +534,12 @@ function isControlledDirty(file: string): boolean {
 }
 
 function preflight() {
+  try {
+    requireGitIdentity(repoRoot);
+  } catch {
+    log(missingGitIdentityHint);
+    process.exit(1);
+  }
   const branch = runGit(["branch", "--show-current"]);
   const name = (branch.stdout || "").trim();
   log("git branch=" + name);
@@ -579,13 +571,9 @@ async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean
       agent,
       "DAG node " +
         task.id +
-        " COMMIT NOW. Stage ticket files. Do not stage .env, dag/metadata/state.json, dag/metadata/agent-id, or dag/logs/failures.log. Run git -c user.name=" +
-        gitAuthorName +
-        " -c user.email=" +
-        gitAuthorEmail +
-        " commit -m " +
+        " COMMIT NOW. Stage ticket files. Do not stage .env, dag/metadata/state.json, dag/metadata/agent-id, or dag/logs/failures.log. Run git commit -m " +
         JSON.stringify(task.commit) +
-        " with that subject only.",
+        " with that subject only. Use the existing git user.name / user.email (do not invent an author).",
       task,
       true
     );
@@ -663,7 +651,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         agent,
         "DAG node " +
           task.id +
-          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in src/backend and UI in src/frontend. If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
+          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in src/backend and UI in src/frontend. Match the node language (package.json+yarn / pyproject+uv pytest / go.mod+go test / Cargo.toml+cargo test). If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
           task.prompt,
         task
       );

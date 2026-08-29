@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { dirHasPackageMarker, testByLang } from "./inventory.js";
 
 const blockedSegments = new Set([
   "dag",
@@ -10,12 +11,7 @@ const blockedSegments = new Set([
   "afaire",
 ]);
 
-const allowedNewTests: { cmd: string; args: string[] }[] = [
-  { cmd: "yarn", args: ["test"] },
-  { cmd: "uv", args: ["run", "python", "-m", "pytest", "-q"] },
-  { cmd: "go", args: ["test", "./..."] },
-  { cmd: "cargo", args: ["test"] },
-];
+const allowedNewTests = Object.values(testByLang);
 
 export function normalizeRelCwd(raw: string): string | null {
   const n = raw.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
@@ -56,7 +52,7 @@ export function isFillableCwd(repoRoot: string, raw: string): boolean {
   if (!existsSync(abs)) {
     return true;
   }
-  return !existsSync(join(abs, "package.json")) && !existsSync(join(abs, "pyproject.toml"));
+  return !dirHasPackageMarker(abs);
 }
 
 export function isAllowedNewTestSpec(cmd: string, args: string[]): boolean {

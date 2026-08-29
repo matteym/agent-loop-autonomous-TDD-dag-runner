@@ -29,7 +29,3 @@ export function validateAnswers(value: unknown): InitAnswers | null {
   }
   return { appPort };
 }
-
-export function summarize(answers: InitAnswers): string {
-  return "folders=" + backendDir + "," + frontendDir + " appPort=" + String(answers.appPort);
-}

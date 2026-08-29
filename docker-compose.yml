@@ -1,2 +1,2 @@
-# Services are added by yarn task (images + env: dag/src/init/stores.ts).
+# yarn task adds services. Copy composeBlock/envBlock in this file (postgres, redis, mongodb, neo4j, mysql).
 services: {}

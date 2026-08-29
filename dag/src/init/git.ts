@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { gitAuthorEmail, gitAuthorName } from "../git-author.js";
 import { log } from "./log.js";
 
 export const railsCommitSubject = "chore(config): bootstrap stack from init wizard";
+
+export const missingGitIdentityHint =
+  "set git user.name and user.email in this repo (git config user.name / user.email). The runner does not invent an author.";
 
 function git(repoRoot: string, args: string[]) {
   return spawnSync("git", args, {
@@ -12,7 +14,20 @@ function git(repoRoot: string, args: string[]) {
   });
 }
 
+export function hasGitIdentity(repoRoot: string): boolean {
+  const name = (git(repoRoot, ["config", "user.name"]).stdout || "").trim();
+  const email = (git(repoRoot, ["config", "user.email"]).stdout || "").trim();
+  return Boolean(name && email);
+}
+
+export function requireGitIdentity(repoRoot: string): void {
+  if (!hasGitIdentity(repoRoot)) {
+    throw new Error(missingGitIdentityHint);
+  }
+}
+
 export function commitRails(repoRoot: string) {
+  requireGitIdentity(repoRoot);
   const inside = git(repoRoot, ["rev-parse", "--is-inside-work-tree"]);
   if (inside.status !== 0) {
     const init = git(repoRoot, ["init"]);
@@ -45,15 +60,7 @@ export function commitRails(repoRoot: string) {
   if (!files.length) {
     throw new Error("commit aborted: nothing to commit");
   }
-  const commit = git(repoRoot, [
-    "-c",
-    "user.name=" + gitAuthorName,
-    "-c",
-    "user.email=" + gitAuthorEmail,
-    "commit",
-    "-m",
-    railsCommitSubject,
-  ]);
+  const commit = git(repoRoot, ["commit", "-m", railsCommitSubject]);
   if (commit.status !== 0) {
     log((commit.stderr || commit.stdout || "git commit failed").trim());
     throw new Error("git commit failed");

@@ -18,6 +18,12 @@ describe("new cwd", () => {
       expect(isFillableCwd(dir, "src/backend")).toBe(true);
       writeFileSync(join(dir, "src", "backend", "package.json"), "{}");
       expect(isFillableCwd(dir, "src/backend")).toBe(false);
+      rmSync(join(dir, "src", "backend", "package.json"));
+      writeFileSync(join(dir, "src", "backend", "go.mod"), "module app\n");
+      expect(isFillableCwd(dir, "src/backend")).toBe(false);
+      rmSync(join(dir, "src", "backend", "go.mod"));
+      writeFileSync(join(dir, "src", "backend", "Cargo.toml"), "[package]\nname=\"app\"\n");
+      expect(isFillableCwd(dir, "src/backend")).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -48,6 +54,8 @@ describe("new cwd", () => {
     expect(isAllowedNewTestSpec("uv", ["run", "python", "-m", "pytest", "-q"])).toBe(
       true
     );
+    expect(isAllowedNewTestSpec("go", ["test", "./..."])).toBe(true);
+    expect(isAllowedNewTestSpec("cargo", ["test"])).toBe(true);
     expect(isAllowedNewTestSpec("yarn", ["test", "--watch"])).toBe(false);
     expect(isAllowedNewTestSpec("curl", ["https://evil.example"])).toBe(false);
     expect(isAllowedNewTestSpec("git", ["push"])).toBe(false);

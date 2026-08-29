@@ -12,7 +12,6 @@ export const metadataDagPath = join(metadataDir, "dag.json");
 export const metadataTaskPath = join(metadataDir, "task.json");
 export const metadataStatePath = join(metadataDir, "state.json");
 export const metadataAgentIdPath = join(metadataDir, "agent-id");
-export const metadataInitLastPath = join(metadataDir, "init.last.json");
 export const metadataInitDefaultsPath = join(metadataDir, "init.defaults.json");
 export const historyPath = join(historyDir, "nodes.jsonl");
 export const failuresLogPath = join(logsDir, "failures.log");

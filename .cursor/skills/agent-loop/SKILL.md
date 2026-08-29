@@ -2,22 +2,22 @@
 name: agent-loop
 description: >-
   Master operational protocol for the Cursor SDK DAG (dag/run-dag-loop.ts,
-  dag/metadata/dag.json). Apply on every Agent.send turn, DAG node, agent-loop
-  step, or autonomous change. Local Agent.create only. Orchestrator owns tests,
-  guard, commit verify, archive, and next.
+  dag/metadata/task.json or --dagfile). Apply on every Agent.send turn, DAG node,
+  agent-loop step, or autonomous change. Local Agent.create only. Orchestrator
+  owns tests, guard, commit verify, archive, and next.
 ---
 
 # Agent-loop protocol
 
 Runtime: one local agent handle (Cursor `@cursor/sdk` or Claude Code SDK) plus one send per node and fix round. No pstack. MCP is optional read-only context.
 
-Operator manual: `dag/README.md`. Default: from `dag/`, `yarn task "intent"`. Empty repo: `yarn run init` then `yarn task`. Expert/CI: `yarn task --dagfile=metadata/dag.json`.
+Operator manual: `dag/README.md`. Default: from `dag/`, `yarn task "intent"`. Empty repo: `yarn run init` then `yarn task`. Expert/CI: `yarn task --dagfile=<your.json>`.
 
 ## Split of duties
 
 | Actor | Owns | Never |
 |---|---|---|
-| Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/dag.json` / `metadata/task.json` / `*.done.json` |
+| Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/task.json` / `*.done.json` |
 | Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; optional `git push` + `gh pr create` only with `--allow-pull-request` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
 
 Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git, secrets, apply**.
@@ -25,7 +25,7 @@ Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git,
 ## SECTION 1 — Source of truth
 
 1. Load this skill and `.cursor/rules/agent-loop.mdc`. Other project skills if they match the ticket.
-2. Read the current node in the DAG JSON (`--dagfile` or `dag/metadata/dag.json` / `dag/metadata/task.json`). The orchestrator appends a deterministic repo briefing (inventoried packages, this node's tests, exact commit subject, forbidden paths). Do not treat the briefing as extra scope.
+2. Read the current node in the DAG JSON (`--dagfile` or `dag/metadata/task.json`). The orchestrator appends a deterministic repo briefing (inventoried packages, this node's tests, exact commit subject, forbidden paths). Do not treat the briefing as extra scope.
 3. Copy APIs from existing code in this repo. Do not invent syntax.
 4. Do not use MCP to mutate cloud state.
 
@@ -76,8 +76,8 @@ Up to 5 fix sends. Then `dag/logs/failures.log`, `git reset --hard HEAD` (tracke
 
 ## SECTION TASK
 
-Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. On an empty repo, the task command runs `yarn run init` first. Then one PLAN send. A new package (example `Client/`) may be a DAG node with `optionalCwd` and `yarn test` even if it is not in inventory yet; the agent must create it and tests must pass. Inventoried packages keep their listed test command. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=metadata/dag.json`. Greenfield rails are `yarn run init`, not an LLM scaffold node.
+Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. On an empty repo, the task command runs `yarn run init` first. Then one PLAN send (max 10 feature nodes; a full app or a module like auth may be several sequential tasks, including several in the same package). A new package (example `Client/`) may be a DAG node with `optionalCwd` and the test command for that language (`yarn test`, `uv`+pytest, `go test ./...`, `cargo test`) even if it is not in inventory yet; the agent must create the marker file and tests must pass. Inventoried packages keep their listed test command. FastAPI/gin/axum must not be planned as `yarn test`. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=<your.json>`. Greenfield rails are `yarn run init`, not an LLM scaffold node.
 
 ## ONBOARDING
 
-Copy `dag/` and `.cursor/` into an empty folder. `git init`. From `dag/`: `yarn && yarn run init` writes compose, `.env` (gitignored), app tree, commits rails, `docker compose up --build -d`. Then `yarn task "…"`. Expert brownfield: `yarn task --dagfile=src/templates/brief.example.json` or `yarn task --dagfile=metadata/dag.json`. Do not paste secrets into the DAG JSON.
+Copy `dag/` and `.cursor/` into an empty folder. `git init` and set `user.name` / `user.email`. From `dag/`: `yarn && yarn run init` writes compose, `.env` (gitignored), app tree, commits rails. Then `yarn task "…"`. Expert: `yarn task --dagfile=<your.json>`. Do not paste secrets into the DAG JSON.

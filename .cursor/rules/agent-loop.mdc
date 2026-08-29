@@ -5,7 +5,7 @@ alwaysApply: true
 
 # DAG / SDK
 
-Follow `.cursor/skills/agent-loop/SKILL.md`. You are one `Agent.send` for the current DAG node only (`--dagfile` or `dag/metadata/dag.json`). Operator manual: `dag/README.md`.
+Follow `.cursor/skills/agent-loop/SKILL.md`. You are one `Agent.send` for the current DAG node only (`--dagfile` or `dag/metadata/task.json`). Operator manual: `dag/README.md`.
 
 Do not `git push`, `--no-verify`, `terraform apply`, or `terraform destroy`. Do not `git commit` unless this send is COMMIT NOW. On COMMIT NOW, use the exact `commit` string from the DAG (briefing). Orchestrator runs TDD when the node has tests, then guard, tests from the DAG JSON, COMMIT NOW, archive to sibling `*.done.json`.
 

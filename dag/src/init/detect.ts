@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { dirHasPackageMarker, inferTestCommand } from "../inventory.js";
 
 const skipNames = new Set([
   "node_modules",
@@ -13,22 +14,11 @@ const skipNames = new Set([
 ]);
 
 function dirHasMarker(dir: string): boolean {
-  return existsSync(join(dir, "package.json")) || existsSync(join(dir, "pyproject.toml"));
+  return dirHasPackageMarker(dir);
 }
 
 function hasTestScript(dir: string): boolean {
-  const pkgPath = join(dir, "package.json");
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
-        scripts?: Record<string, string>;
-      };
-      return Boolean(pkg.scripts?.test);
-    } catch {
-      return false;
-    }
-  }
-  return existsSync(join(dir, "pyproject.toml"));
+  return inferTestCommand(dir) !== null;
 }
 
 function walkProductMarkers(dir: string, depth: number, hits: string[]) {

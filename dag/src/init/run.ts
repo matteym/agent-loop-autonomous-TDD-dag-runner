@@ -1,18 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { defaultAnswers, validateAnswers, type InitAnswers } from "./answers.js";
 import { writeBootstrap } from "./bootstrap.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
 import { renderEnv } from "./env.js";
-import { commitRails } from "./git.js";
+import { commitRails, hasGitIdentity, missingGitIdentityHint } from "./git.js";
 import { log, phase } from "./log.js";
-import {
-  metadataDir,
-  metadataInitDefaultsPath,
-  metadataInitLastPath,
-  repoRoot,
-} from "../paths.js";
+import { metadataInitDefaultsPath, repoRoot } from "../paths.js";
 
 export type InitOpts = {
   force?: boolean;
@@ -50,6 +45,9 @@ function refuseUnlessForce(force: boolean | undefined, reason: string): InitResu
 }
 
 export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
+  if (!hasGitIdentity(repoRoot)) {
+    return { status: "refused", reason: missingGitIdentityHint };
+  }
   if (repoHasServerSrc(repoRoot)) {
     const refused = refuseUnlessForce(
       opts.force,
@@ -70,9 +68,6 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   }
 
   const answers = opts.nonInteractive ? loadNonInteractiveAnswers() : defaultAnswers();
-
-  mkdirSync(metadataDir, { recursive: true });
-  writeFileSync(metadataInitLastPath, JSON.stringify(answers, null, 2) + "\n");
 
   phase("COMPOSE", "docker-compose.yml .env");
   const env = renderEnv(answers);

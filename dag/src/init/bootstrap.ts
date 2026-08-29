@@ -12,7 +12,6 @@ const ignoreLines = [
   "dag/metadata/task.json",
   "dag/metadata/*.done.json",
   "dag/metadata/agent-id",
-  "dag/metadata/init.last.json",
   "dag/history/*",
   "!dag/history/.gitkeep",
   "dag/logs/*.log",
