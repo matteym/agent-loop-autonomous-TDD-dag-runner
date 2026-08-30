@@ -3,7 +3,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import { openOrReusePullRequest } from "./pr.js";
+import { argvForWinShell, openOrReusePullRequest } from "./pr.js";
+
+describe("argvForWinShell", () => {
+  it("quotes values that contain spaces so cmd does not split them", () => {
+    expect(
+      argvForWinShell([
+        "pr",
+        "create",
+        "--title",
+        "Simple hello world in src",
+        "--body",
+        "Automated DAG run: Simple hello world in src",
+      ])
+    ).toEqual([
+      "pr",
+      "create",
+      "--title",
+      '"Simple hello world in src"',
+      "--body",
+      '"Automated DAG run: Simple hello world in src"',
+    ]);
+  });
+});
 
 describe("openOrReusePullRequest", () => {
   it("refuses main and master", () => {
