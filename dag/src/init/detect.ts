@@ -21,7 +21,12 @@ function hasTestScript(dir: string): boolean {
   return inferTestCommand(dir) !== null;
 }
 
-function walkProductMarkers(dir: string, depth: number, hits: string[]) {
+function walkProductMarkers(
+  dir: string,
+  depth: number,
+  hits: string[],
+  extraSkip: ReadonlySet<string>
+) {
   if (depth >= 4) {
     return;
   }
@@ -32,14 +37,19 @@ function walkProductMarkers(dir: string, depth: number, hits: string[]) {
     return;
   }
   for (const entry of entries) {
-    if (!entry.isDirectory() || skipNames.has(entry.name) || entry.name.startsWith(".")) {
+    if (
+      !entry.isDirectory() ||
+      skipNames.has(entry.name) ||
+      extraSkip.has(entry.name) ||
+      entry.name.startsWith(".")
+    ) {
       continue;
     }
     const child = join(dir, entry.name);
     if (dirHasMarker(child)) {
       hits.push(child);
     }
-    walkProductMarkers(child, depth + 1, hits);
+    walkProductMarkers(child, depth + 1, hits, extraSkip);
   }
 }
 
@@ -85,7 +95,7 @@ export function hasProductStack(repoRoot: string): boolean {
   return dirHasMarker(servicesApi) && hasTestScript(servicesApi);
 }
 
-export function isEmptyTarget(repoRoot: string): boolean {
+export function isEmptyTarget(repoRoot: string, extraSkip: readonly string[] = []): boolean {
   if (hasCompose(repoRoot)) {
     return false;
   }
@@ -107,6 +117,6 @@ export function isEmptyTarget(repoRoot: string): boolean {
     return false;
   }
   const hits: string[] = [];
-  walkProductMarkers(repoRoot, 0, hits);
+  walkProductMarkers(repoRoot, 0, hits, new Set(extraSkip));
   return hits.length === 0;
 }

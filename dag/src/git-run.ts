@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { commitMessageValid } from "./commit.js";
-import { repoRoot } from "./paths.js";
+import { pluginDirName, repoRoot } from "./paths.js";
 import { log } from "./run-log.js";
 
 export const blockedCommitPaths = [".env", "app-storage-service-account-key.json"];
@@ -19,8 +19,14 @@ export function porcelainPath(line: string): string {
   return raw.replace(/\\/g, "/").replace(/^"/, "").replace(/"$/, "");
 }
 
-export function isControlledDirty(file: string): boolean {
-  const n = file.replace(/\\/g, "/");
+export function isControlledDirty(file: string, pluginName: string | null = pluginDirName): boolean {
+  const n = file.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (pluginName) {
+    const prefix = pluginName.replace(/\\/g, "/") + "/";
+    if (n === pluginName || n.startsWith(prefix)) {
+      return true;
+    }
+  }
   if (
     n === "dag/metadata/state.json" ||
     n === "dag/metadata/task.json" ||
@@ -70,14 +76,18 @@ export function orchestratorCommit(message: string, allowEmpty: boolean | undefi
     return false;
   }
   runGit(["add", "-A"]);
-  runGit([
+  const resetArgs = [
     "reset",
     "HEAD",
     "--",
     "dag/logs/failures.log",
     "dag/metadata/agent-id",
     "dag/history/nodes.jsonl",
-  ]);
+  ];
+  if (pluginDirName) {
+    resetArgs.push(pluginDirName);
+  }
+  runGit(resetArgs);
   if (stagedTouchesBlockedPath()) {
     runGit(["reset", "HEAD"]);
     log("commit aborted: staged blocked path");

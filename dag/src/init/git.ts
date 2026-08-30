@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { log } from "./log.js";
+import { pluginDirName } from "../paths.js";
 
 export const bootstrapCommitSubject = "chore(config): bootstrap empty stack from init";
 
@@ -108,6 +109,9 @@ export function commitBootstrap(repoRoot: string) {
     throw new Error("git add failed");
   }
   git(repoRoot, ["rm", "-f", "--cached", "--", ".env"]);
+  if (pluginDirName) {
+    git(repoRoot, ["rm", "-r", "-f", "--cached", "--", pluginDirName]);
+  }
   const staged = git(repoRoot, ["diff", "--cached", "--name-only"]);
   const files = (staged.stdout || "")
     .split(/\r?\n/)

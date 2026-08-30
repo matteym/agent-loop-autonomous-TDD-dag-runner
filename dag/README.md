@@ -2,7 +2,7 @@
 
 Local DAG runner (Cursor SDK or Claude Code). Not a SaaS.
 
-Engine = `dag/` + `.cursor/`. Entry: `run-dag-loop.ts`. Product artefacts (compose, `.env`, app) sit at the target repo root.
+Engine = this repo (`dag/` + `.cursor/`). Drop the whole clone inside a product git repo: `yarn run init` writes compose, `.env`, app tree, GitHub Actions, and `.cursor` on the **parent** (`../`) and gitignores this plugin folder. Entry: `run-dag-loop.ts`.
 
 ## Commands
 
@@ -46,7 +46,7 @@ yarn task --dagfile=path/to/your-dag.json --provider=cursor
 
 Without `--provider`: both keys present → `cursor`. Else the key that exists. No key → EXIT 1.
 
-Keys from the environment, then `.env` (repo root, `dag/`, `Server/`):
+Keys from the environment, then `.env` (product root, engine root, `dag/`, `Server/`):
 
 - Cursor: `CURSOR_API_KEY` or `CURSOR_SDK_API`
 - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`
@@ -62,9 +62,9 @@ yarn run init --remote=https://github.com/OWNER/REPO.git --yes
 yarn run init --force --yes --remote=https://github.com/OWNER/REPO.git
 ```
 
-`--remote` / `--repo` is **required** (GitHub https or ssh). Init writes `.github/workflows/ci.yml`, commits on `agent/init` (or the current `agent/*` branch), sets `origin`, and `git push -u origin HEAD` (never `--force`). `--yes` confirms without a TTY. `--force` overwrites a non-empty repo / `Server/src`, and replaces `origin` if it already exists.
+`--remote` / `--repo` is **required** (GitHub https or ssh). When this engine is nested inside another git repo, init writes on **that parent** (compose, `src/backend`, `src/frontend`, `.cursor`, `.github/workflows/ci.yml`), adds this folder to the parent `.gitignore`, commits on `agent/init`, sets the **parent** `origin`, and `git push -u origin HEAD` (never `--force`). `--yes` confirms without a TTY. `--force` overwrites a non-empty product / `Server/src`, and replaces origin if it already exists.
 
-Init is silent: creates `src/backend`, `src/frontend`, empty Compose, `.env` (`APP_PORT`), and the CI workflow. Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
+Init is silent: creates `src/backend`, `src/frontend`, empty Compose, `.env` (`APP_PORT`), copies `.cursor` to the product, and the CI workflow. Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
 
 The Action always lists TypeScript (`yarn test`), Python (`uv` + pytest), Go (`go test ./...`), and Rust (`cargo test`). If a language has no package in the tree, or the tool is missing, that step is skipped and the job stays green. Failed tests on a language that **is** present fail the job.
 
@@ -100,7 +100,9 @@ One logs directory: `logs/` (not `log/`).
 
 ## Copy into another repo
 
-Copy `dag/` and `.cursor/` (skill, rule, hooks). `git init` and set `user.name` / `user.email`. Then `cd dag && yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`.
+Clone this repo **inside** the product git clone. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`. Init targets the parent work tree and gitignores the plugin directory.
+
+Alternatively copy only `dag/` and `.cursor/` to the product root (engine = product). Same init command.
 
 Brownfield: `yarn task "…"`. A package missing from inventory (example `Client/`) may use `optionalCwd` plus that language's test command; after GREEN the folder must exist and tests must pass.
 
@@ -108,7 +110,7 @@ Already-written queue: `yarn task --dagfile=path/to/your-dag.json`.
 
 ## UI
 
-Init: COMPOSE, BOOTSTRAP, CI, REMOTE, PUSH. Task: PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, CI (keeps the same workflow file), COMMIT NOW, ARCHIVE, PUSH, PR, SKIP, FAIL.
+Init: COMPOSE, BOOTSTRAP, PLUGIN (if nested), CI, REMOTE, PUSH. Task: PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, CI (keeps the same workflow file), COMMIT NOW, ARCHIVE, PUSH, PR, SKIP, FAIL.
 
 ## Forbidden (agent)
 

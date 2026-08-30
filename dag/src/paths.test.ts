@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   dagDir,
   donePathFor,
+  engineRoot,
   historyDir,
   historyPath,
   logsDir,
@@ -11,6 +12,7 @@ import {
   metadataDir,
   metadataStatePath,
   metadataTaskPath,
+  repoRoot,
   resolveDagFile,
 } from "./paths.js";
 
@@ -33,7 +35,9 @@ describe("paths", () => {
     );
   });
 
-  it("keeps dagDir named dag", () => {
+  it("keeps dagDir named dag and engineRoot as its parent", () => {
     expect(basename(dagDir)).toBe("dag");
+    expect(engineRoot).toBeTruthy();
+    expect(repoRoot).toBeTruthy();
   });
 });

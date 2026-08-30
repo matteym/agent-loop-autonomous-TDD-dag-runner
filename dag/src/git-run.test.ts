@@ -14,6 +14,16 @@ describe("isControlledDirty", () => {
     expect(isControlledDirty("src/backend/package.json")).toBe(false);
     expect(isControlledDirty(".github/workflows/ci.yml")).toBe(false);
   });
+
+  it("ignores a nested engine plugin folder on the product repo", () => {
+    const plugin = "agent-loop-autonomous-TDD-dag-runner";
+    expect(isControlledDirty(plugin, plugin)).toBe(true);
+    expect(isControlledDirty(plugin + "/dag/metadata/task.json", plugin)).toBe(true);
+    expect(isControlledDirty(plugin + "/.cursor/skills/agent-loop/SKILL.md", plugin)).toBe(
+      true
+    );
+    expect(isControlledDirty("src/backend/package.json", plugin)).toBe(false);
+  });
 });
 
 describe("isBlockedCommitPath", () => {

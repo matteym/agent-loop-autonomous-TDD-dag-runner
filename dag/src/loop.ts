@@ -211,6 +211,9 @@ function preflight() {
     .filter((line) => !isControlledDirty(porcelainPath(line)));
   if (dirty.length) {
     log("working tree is dirty; commit first");
+    for (const line of dirty.slice(0, 20)) {
+      log(line);
+    }
     process.exit(1);
   }
 }

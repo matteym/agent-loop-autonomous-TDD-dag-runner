@@ -42,6 +42,22 @@ describe("detect", () => {
     }
   });
 
+  it("ignores a nested engine clone when checking emptiness", () => {
+    const dir = scratch();
+    try {
+      mkdirSync(join(dir, "agent-loop-autonomous-TDD-dag-runner", "dag"), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(dir, "agent-loop-autonomous-TDD-dag-runner", "dag", "package.json"),
+        JSON.stringify({ scripts: { test: "vitest run" } })
+      );
+      expect(isEmptyTarget(dir, ["agent-loop-autonomous-TDD-dag-runner"])).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("hasProductStack for a backend microservice package", () => {
     const dir = scratch();
     try {

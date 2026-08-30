@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { dirHasPackageMarker, testByLang } from "./inventory.js";
+import { pluginDirName } from "./paths.js";
 
 const blockedSegments = new Set([
   "dag",
@@ -32,6 +33,9 @@ export function normalizeRelCwd(raw: string): string | null {
       return null;
     }
     if (blockedSegments.has(part.toLowerCase())) {
+      return null;
+    }
+    if (pluginDirName && part.toLowerCase() === pluginDirName.toLowerCase()) {
       return null;
     }
   }
