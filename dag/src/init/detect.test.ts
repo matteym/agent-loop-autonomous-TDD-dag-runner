@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hasCompose, hasRails, isEmptyTarget, repoHasServerSrc } from "./detect.js";
+import { hasCompose, hasProductStack, isEmptyTarget, repoHasServerSrc } from "./detect.js";
 
 function scratch(): string {
   return mkdtempSync(join(tmpdir(), "dag-detect-"));
@@ -42,7 +42,7 @@ describe("detect", () => {
     }
   });
 
-  it("hasRails for a backend microservice package", () => {
+  it("hasProductStack for a backend microservice package", () => {
     const dir = scratch();
     try {
       writeFileSync(join(dir, "docker-compose.yml"), "services: {}\n");
@@ -51,7 +51,7 @@ describe("detect", () => {
         join(dir, "src", "backend", "zeub", "package.json"),
         JSON.stringify({ scripts: { test: "vitest run" } })
       );
-      expect(hasRails(dir)).toBe(true);
+      expect(hasProductStack(dir)).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

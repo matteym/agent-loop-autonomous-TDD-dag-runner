@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { defaultAnswers, parsePort, validateAnswers } from "./answers.js";
+import { defaultPort, parsePort, validatePort } from "./port.js";
 
-describe("validateAnswers", () => {
-  it("keeps only appPort and ignores old wizard fields", () => {
-    const parsed = validateAnswers({
+describe("validatePort", () => {
+  it("keeps only appPort and ignores extra fields", () => {
+    const parsed = validatePort({
       appPort: 3000,
       runtime: "ts",
       architecture: "microservices",
       appName: "todo-list",
     });
     expect(parsed).toEqual({ appPort: 3000 });
-    expect(defaultAnswers()).toEqual({ appPort: 3000 });
+    expect(defaultPort()).toEqual({ appPort: 3000 });
   });
 });
 

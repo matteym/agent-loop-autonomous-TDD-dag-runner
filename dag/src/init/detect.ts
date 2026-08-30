@@ -51,7 +51,7 @@ export function hasCompose(repoRoot: string): boolean {
   return existsSync(join(repoRoot, "docker-compose.yml"));
 }
 
-export function hasRails(repoRoot: string): boolean {
+export function hasProductStack(repoRoot: string): boolean {
   if (!hasCompose(repoRoot)) {
     return false;
   }

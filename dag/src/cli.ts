@@ -9,7 +9,7 @@ export type ParsedCli = {
   intent: string;
   dagfile?: string;
   remote?: string;
-  allowPullRequest: boolean;
+  push: boolean;
   provider?: ProviderName;
 };
 
@@ -30,10 +30,23 @@ function readFlagValue(argv: string[], name: string): string | undefined {
   return undefined;
 }
 
+function parseOnOff(raw: string): boolean | null {
+  if (raw === "true" || raw === "1" || raw === "yes") {
+    return true;
+  }
+  if (raw === "false" || raw === "0" || raw === "no") {
+    return false;
+  }
+  return null;
+}
+
 export function parseArgv(argv: string[]): ParseResult {
   const args = argv.filter((arg) => arg !== "--");
   if (!args.length) {
-    return { ok: false, error: "usage: yarn run init | yarn task \"intent\"" };
+    return {
+      ok: false,
+      error: "usage: yarn run init --remote=https://github.com/OWNER/REPO.git | yarn task \"intent\"",
+    };
   }
   const command = args[0];
   if (command !== "init" && command !== "task") {
@@ -44,16 +57,25 @@ export function parseArgv(argv: string[]): ParseResult {
     "--force",
     "--yes",
     "--allow-pull-request",
+    "--no-push",
     "--dagfile",
     "--remote",
+    "--repo",
     "--provider",
+    "--push",
   ]);
   for (const arg of rest) {
     if (!arg.startsWith("-")) {
       continue;
     }
     const name = arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg;
-    if (name === "--dagfile" || name === "--remote" || name === "--provider") {
+    if (
+      name === "--dagfile" ||
+      name === "--remote" ||
+      name === "--repo" ||
+      name === "--provider" ||
+      name === "--push"
+    ) {
       continue;
     }
     if (!known.has(name)) {
@@ -68,6 +90,15 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     provider = providerRaw;
   }
+  const pushRaw = readFlagValue(rest, "--push");
+  let push = !rest.includes("--no-push");
+  if (pushRaw !== undefined) {
+    const parsed = parseOnOff(pushRaw);
+    if (parsed === null) {
+      return { ok: false, error: "push must be true or false" };
+    }
+    push = parsed;
+  }
   const intent = rest
     .filter((arg, i, all) => {
       if (arg.startsWith("-")) {
@@ -75,7 +106,11 @@ export function parseArgv(argv: string[]): ParseResult {
       }
       if (
         i > 0 &&
-        (all[i - 1] === "--dagfile" || all[i - 1] === "--remote" || all[i - 1] === "--provider")
+        (all[i - 1] === "--dagfile" ||
+          all[i - 1] === "--remote" ||
+          all[i - 1] === "--repo" ||
+          all[i - 1] === "--provider" ||
+          all[i - 1] === "--push")
       ) {
         return false;
       }
@@ -91,8 +126,8 @@ export function parseArgv(argv: string[]): ParseResult {
       yes: rest.includes("--yes"),
       intent,
       dagfile: readFlagValue(rest, "--dagfile"),
-      remote: readFlagValue(rest, "--remote"),
-      allowPullRequest: rest.includes("--allow-pull-request"),
+      remote: readFlagValue(rest, "--remote") || readFlagValue(rest, "--repo"),
+      push,
       provider,
     },
   };

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 export const inventoryMarkers = [
   "package.json",
@@ -90,6 +90,78 @@ export function testsMatch(expected: TestCommand, got: { cmd: string; args: stri
 
 export function formatTestCommand(spec: TestCommand): string {
   return spec.cmd + " " + spec.args.join(" ");
+}
+
+const skipInventoryWalk = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  ".venv",
+  "coverage",
+  ".next",
+  "logs",
+  "dag",
+  ".cursor",
+  ".github",
+]);
+
+export type TestablePkg = {
+  rel: string;
+  lang: LangKind;
+  test: TestCommand;
+};
+
+export function langOfTestCommand(test: TestCommand): LangKind | null {
+  if (test.cmd === "yarn") {
+    return "ts";
+  }
+  if (test.cmd === "uv") {
+    return "py";
+  }
+  if (test.cmd === "go") {
+    return "go";
+  }
+  if (test.cmd === "cargo") {
+    return "rust";
+  }
+  return null;
+}
+
+export function listTestablePackages(repoRoot: string): TestablePkg[] {
+  const out: TestablePkg[] = [];
+  walkTestable(repoRoot, repoRoot, 0, out);
+  const seen = new Set<string>();
+  return out.filter((pkg) => {
+    if (seen.has(pkg.rel)) {
+      return false;
+    }
+    seen.add(pkg.rel);
+    return true;
+  });
+}
+
+function walkTestable(root: string, dir: string, depth: number, out: TestablePkg[]) {
+  const test = inferTestCommand(dir);
+  const lang = test ? langOfTestCommand(test) : null;
+  if (test && lang) {
+    const rel = relative(root, dir).replace(/\\/g, "/") || ".";
+    out.push({ rel, lang, test });
+  }
+  if (depth >= 3) {
+    return;
+  }
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || skipInventoryWalk.has(entry.name) || entry.name.startsWith(".")) {
+      continue;
+    }
+    walkTestable(root, join(dir, entry.name), depth + 1, out);
+  }
 }
 
 export function mismatchLangTests(

@@ -1,11 +1,11 @@
 export const backendDir = "src/backend";
 export const frontendDir = "src/frontend";
 
-export type InitAnswers = {
+export type InitPort = {
   appPort: number;
 };
 
-export function defaultAnswers(): InitAnswers {
+export function defaultPort(): InitPort {
   return { appPort: 3000 };
 }
 
@@ -18,7 +18,7 @@ export function parsePort(raw: string, fallback: number): number | null {
   return n;
 }
 
-export function validateAnswers(value: unknown): InitAnswers | null {
+export function validatePort(value: unknown): InitPort | null {
   if (!value || typeof value !== "object") {
     return null;
   }

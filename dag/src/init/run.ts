@@ -1,14 +1,16 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { defaultAnswers, validateAnswers, type InitAnswers } from "./answers.js";
+import { defaultPort, validatePort, type InitPort } from "./port.js";
 import { writeBootstrap } from "./bootstrap.js";
+import { syncCiWorkflow } from "../ci.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
 import { renderEnv } from "./env.js";
 import {
-  commitRails,
+  commitBootstrap,
   hasGitIdentity,
   missingGitIdentityHint,
+  pushHead,
   setOriginRemote,
 } from "./git.js";
 import { log, phase } from "./log.js";
@@ -25,22 +27,22 @@ export type InitResult =
   | { status: "aborted" }
   | { status: "refused"; reason: string };
 
-function loadJsonAnswers(filePath: string): InitAnswers {
+function loadJsonPort(filePath: string): InitPort {
   if (!existsSync(filePath)) {
     throw new Error("answers file not found: " + filePath);
   }
-  const parsed = validateAnswers(JSON.parse(readFileSync(filePath, "utf8")));
+  const parsed = validatePort(JSON.parse(readFileSync(filePath, "utf8")));
   if (!parsed) {
     throw new Error("invalid answers in " + filePath);
   }
   return parsed;
 }
 
-function loadNonInteractiveAnswers(): InitAnswers {
+function loadNonInteractivePort(): InitPort {
   if (existsSync(metadataInitDefaultsPath)) {
-    return loadJsonAnswers(metadataInitDefaultsPath);
+    return loadJsonPort(metadataInitDefaultsPath);
   }
-  return defaultAnswers();
+  return defaultPort();
 }
 
 function refuseUnlessForce(force: boolean | undefined, reason: string): InitResult | null {
@@ -50,7 +52,13 @@ function refuseUnlessForce(force: boolean | undefined, reason: string): InitResu
   return { status: "refused", reason };
 }
 
+export const missingRemoteHint =
+  "yarn run init requires --remote=https://github.com/OWNER/REPO.git (or --repo=)";
+
 export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
+  if (!opts.remote) {
+    return { status: "refused", reason: missingRemoteHint };
+  }
   if (!hasGitIdentity(repoRoot)) {
     return { status: "refused", reason: missingGitIdentityHint };
   }
@@ -73,29 +81,30 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
     }
   }
 
-  const answers = opts.nonInteractive ? loadNonInteractiveAnswers() : defaultAnswers();
+  const port = opts.nonInteractive ? loadNonInteractivePort() : defaultPort();
 
   phase("COMPOSE", "docker-compose.yml .env");
-  const env = renderEnv(answers);
+  const env = renderEnv(port);
   writeFileSync(join(repoRoot, "docker-compose.yml"), renderCompose());
   writeFileSync(join(repoRoot, ".env"), env.dotenv);
   writeFileSync(join(repoRoot, ".env.example"), env.example);
   phase("BOOTSTRAP", "src/backend src/frontend");
   writeBootstrap(repoRoot);
-  commitRails(repoRoot);
+  phase("CI", ".github/workflows/ci.yml");
+  syncCiWorkflow(repoRoot);
+  commitBootstrap(repoRoot);
 
-  if (opts.remote) {
-    phase("REMOTE", opts.remote);
-    const linked = setOriginRemote(repoRoot, opts.remote, opts.force);
-    if (!linked.ok) {
-      return { status: "refused", reason: linked.reason };
-    }
-    log("origin=" + linked.url + " (not pushed)");
-    log('next: git push -u origin HEAD && yarn task "your first feature"');
-    return { status: "ok" };
+  phase("REMOTE", opts.remote);
+  const linked = setOriginRemote(repoRoot, opts.remote, opts.force);
+  if (!linked.ok) {
+    return { status: "refused", reason: linked.reason };
   }
-
-  log("no GitHub remote; pass --remote=https://github.com/OWNER/REPO.git");
+  phase("PUSH", "origin HEAD");
+  const pushed = pushHead(repoRoot);
+  if (!pushed.ok) {
+    return { status: "refused", reason: pushed.reason };
+  }
+  log("origin=" + linked.url);
   log('next: yarn task "your first feature"');
   return { status: "ok" };
 }

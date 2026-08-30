@@ -1,4 +1,4 @@
-import type { InitAnswers } from "./answers.js";
+import type { InitPort } from "./port.js";
 
 export type EnvBundle = {
   dotenv: string;
@@ -6,8 +6,8 @@ export type EnvBundle = {
   keys: string[];
 };
 
-export function renderEnv(answers: InitAnswers): EnvBundle {
-  const line = "APP_PORT=" + String(answers.appPort);
+export function renderEnv(port: InitPort): EnvBundle {
+  const line = "APP_PORT=" + String(port.appPort);
   return {
     dotenv: line + "\n",
     example: line + "\n",

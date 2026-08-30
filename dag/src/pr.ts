@@ -4,41 +4,66 @@ function winShell(): boolean {
   return process.platform === "win32";
 }
 
-export function createPullRequest(
-  cwd: string,
-  title: string,
-  body: string
-): { ok: boolean; output: string } {
+function currentBranch(cwd: string): string {
   const branch = spawnSync("git", ["branch", "--show-current"], {
     cwd,
     encoding: "utf8",
     shell: winShell(),
   });
-  const name = (branch.stdout || "").trim();
+  return (branch.stdout || "").trim();
+}
+
+function viewPrUrl(cwd: string): string | undefined {
+  const view = spawnSync("gh", ["pr", "view", "--json", "url"], {
+    cwd,
+    encoding: "utf8",
+    shell: winShell(),
+  });
+  if (view.status !== 0) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse((view.stdout || "").trim()) as { url?: string };
+    const url = (parsed.url || "").trim();
+    return url || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function openOrReusePullRequest(
+  cwd: string,
+  title: string,
+  body: string
+): { ok: boolean; output: string } {
+  const name = currentBranch(cwd);
   if (name === "main" || name === "master") {
     return { ok: false, output: "refusing pull request on " + name };
   }
-  const push = spawnSync("git", ["push", "-u", "origin", "HEAD"], {
-    cwd,
-    encoding: "utf8",
-    shell: winShell(),
-  });
-  if (push.status !== 0) {
-    return {
-      ok: false,
-      output: ((push.stdout || "") + (push.stderr || "")).trim() || "git push failed",
-    };
+  const existing = viewPrUrl(cwd);
+  if (existing) {
+    return { ok: true, output: existing };
   }
-  const pr = spawnSync("gh", ["pr", "create", "--title", title, "--body", body], {
-    cwd,
-    encoding: "utf8",
-    shell: winShell(),
-  });
-  if (pr.status !== 0) {
-    return {
-      ok: false,
-      output: ((pr.stdout || "") + (pr.stderr || "")).trim() || "gh pr create failed",
-    };
+  const created = spawnSync(
+    "gh",
+    ["pr", "create", "--title", title, "--body", body],
+    {
+      cwd,
+      encoding: "utf8",
+      shell: winShell(),
+    }
+  );
+  if (created.status === 0) {
+    return { ok: true, output: (created.stdout || "").trim() };
   }
-  return { ok: true, output: (pr.stdout || "").trim() };
+  const reused = viewPrUrl(cwd);
+  if (reused) {
+    return { ok: true, output: reused };
+  }
+  return {
+    ok: false,
+    output:
+      ((created.stdout || "") + (created.stderr || "")).trim() ||
+      "gh pr create failed",
+  };
 }

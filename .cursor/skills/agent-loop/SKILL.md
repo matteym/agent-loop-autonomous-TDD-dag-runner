@@ -11,14 +11,14 @@ description: >-
 
 Runtime: one local agent handle (Cursor `@cursor/sdk` or Claude Code SDK) plus one send per node and fix round. No pstack. MCP is optional read-only context.
 
-Operator manual: `dag/README.md`. Default: from `dag/`, `yarn task "intent"`. Empty repo: `yarn run init` then `yarn task`. Expert/CI: `yarn task --dagfile=<your.json>`.
+Operator manual: `dag/README.md`. Default: from `dag/`, `yarn run init --remote=https://github.com/OWNER/REPO.git` then `yarn task "intent"`. Expert/CI: `yarn task --dagfile=<your.json>`.
 
 ## Split of duties
 
 | Actor | Owns | Never |
 |---|---|---|
 | Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/task.json` / `*.done.json` |
-| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; optional `git push` + `gh pr create` only with `--allow-pull-request` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
+| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node `git push` + `gh pr create` (reuse if the PR exists) unless `--no-push` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
 
 Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git, secrets, apply**.
 
@@ -47,9 +47,9 @@ No tests: one send, then GUARD + COMMIT NOW (`allowEmptyCommit` if needed). With
 1. **RED** — failing tests only. Orchestrator runs `tests` from the DAG. Up to 2 more red sends if still green. Do not commit.
 2. **GREEN** — minimal production code. Do not commit.
 3. **GUARD + TEST** — `node .cursor/hooks/guard-anti-patterns.mjs` then DAG tests. Up to 5 fix sends. Do not commit.
-4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored).
+4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Init already wrote `.github/workflows/ci.yml`; after node tests pass the orchestrator keeps that file current (do not invent a second workflow). Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored).
 
-CLI (from `dag/`): `yarn run init`, `yarn task "intent"`, `yarn test`. Task flags only: `--dagfile=<path>`, `--allow-pull-request`, `--provider=cursor|claude`. No `DAG_*` environment variables.
+CLI (from `dag/`): `yarn run init --remote=https://github.com/OWNER/REPO.git` (or `--repo=`), `yarn task "intent"`, `yarn test`. Task flags only: `--dagfile=<path>`, `--push=false` / `--no-push`, `--provider=cursor|claude`. No `DAG_*` environment variables.
 
 ## SECTION 4 — Failure
 
@@ -76,8 +76,8 @@ Up to 5 fix sends. Then `dag/logs/failures.log`, `git reset --hard HEAD` (tracke
 
 ## SECTION TASK
 
-Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. On an empty repo, the task command runs `yarn run init` first. Then one PLAN send (max 10 feature nodes; a full app or a module like auth may be several sequential tasks, including several in the same package). A new package (example `Client/`) may be a DAG node with `optionalCwd` and the test command for that language (`yarn test`, `uv`+pytest, `go test ./...`, `cargo test`) even if it is not in inventory yet; the agent must create the marker file and tests must pass. Inventoried packages keep their listed test command. FastAPI/gin/axum must not be planned as `yarn test`. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=<your.json>`. Greenfield rails are `yarn run init`, not an LLM scaffold node.
+Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. Greenfield bootstrap is `yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`): writes Compose, empty `src/backend` + `src/frontend`, `.github/workflows/ci.yml`, commits, and pushes `agent/init`. `yarn task` does not replace init. Then one PLAN send (max 10 feature nodes; a full app or a module like auth may be several sequential tasks, including several in the same package). A new package (example `Client/`) may be a DAG node with `optionalCwd` and the test command for that language (`yarn test`, `uv`+pytest, `go test ./...`, `cargo test`) even if it is not in inventory yet; the agent must create the marker file and tests must pass. Inventoried packages keep their listed test command. FastAPI/gin/axum must not be planned as `yarn test`. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=<your.json>`.
 
 ## ONBOARDING
 
-Copy `dag/` and `.cursor/` into an empty folder. `git init` and set `user.name` / `user.email`. From `dag/`: `yarn && yarn run init` writes compose, `.env` (gitignored), app tree, commits rails. Then `yarn task "…"`. Expert: `yarn task --dagfile=<your.json>`. Do not paste secrets into the DAG JSON.
+Copy `dag/` and `.cursor/` into an empty folder. `git init` and set `user.name` / `user.email`. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`) writes compose, `.env` (gitignored), app tree, `.github/workflows/ci.yml`, the bootstrap commit, and pushes `agent/init`. Then `yarn task "…"`. Expert: `yarn task --dagfile=<your.json>`. Do not paste secrets into the DAG JSON.

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { backendDir, frontendDir } from "./answers.js";
+import { backendDir, frontendDir } from "./port.js";
 
 const ignoreLines = [
   ".env",

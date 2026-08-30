@@ -6,7 +6,6 @@ describe("parseArgv", () => {
     const parsed = parseArgv([
       "task",
       "--dagfile=metadata/dag.json",
-      "--allow-pull-request",
       "--provider=claude",
       "add login",
     ]);
@@ -16,7 +15,7 @@ describe("parseArgv", () => {
     }
     expect(parsed.value.command).toBe("task");
     expect(parsed.value.dagfile).toBe("metadata/dag.json");
-    expect(parsed.value.allowPullRequest).toBe(true);
+    expect(parsed.value.push).toBe(true);
     expect(parsed.value.provider).toBe("claude");
     expect(parsed.value.intent).toBe("add login");
   });
@@ -38,6 +37,18 @@ describe("parseArgv", () => {
     expect(parsed.value.remote).toBe("https://github.com/acme/notes.git");
   });
 
+  it("accepts --repo as an alias for --remote", () => {
+    const parsed = parseArgv([
+      "init",
+      "--repo=https://github.com/acme/notes.git",
+    ]);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) {
+      return;
+    }
+    expect(parsed.value.remote).toBe("https://github.com/acme/notes.git");
+  });
+
   it("parses space-separated --dagfile and --provider", () => {
     const parsed = parseArgv([
       "task",
@@ -52,7 +63,26 @@ describe("parseArgv", () => {
     }
     expect(parsed.value.dagfile).toBe("metadata/dag.json");
     expect(parsed.value.provider).toBe("cursor");
-    expect(parsed.value.allowPullRequest).toBe(false);
+    expect(parsed.value.push).toBe(true);
+  });
+
+  it("disables push with --no-push or --push=false", () => {
+    const off = parseArgv(["task", "--no-push", "add login"]);
+    expect(off.ok).toBe(true);
+    if (off.ok) {
+      expect(off.value.push).toBe(false);
+    }
+    const eq = parseArgv(["task", "--push=false", "add login"]);
+    expect(eq.ok).toBe(true);
+    if (eq.ok) {
+      expect(eq.value.push).toBe(false);
+    }
+    const on = parseArgv(["task", "--push=true", "add login"]);
+    expect(on.ok).toBe(true);
+    if (on.ok) {
+      expect(on.value.push).toBe(true);
+    }
+    expect(parseArgv(["task", "--push=maybe"]).ok).toBe(false);
   });
 
   it("rejects unknown flags and providers", () => {

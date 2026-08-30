@@ -44,7 +44,6 @@ describe("new cwd", () => {
     expect(isSafeNewCwd(".")).toBe(false);
     expect(isSafeNewCwd("/Client")).toBe(false);
     expect(isSafeNewCwd("C:/Client")).toBe(false);
-    expect(isSafeNewCwd("afaire")).toBe(false);
     expect(isSafeNewCwd(".env")).toBe(false);
     expect(isSafeNewCwd("Server/../.git")).toBe(false);
   });

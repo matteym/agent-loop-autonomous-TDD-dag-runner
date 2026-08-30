@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { log } from "./log.js";
 
-export const railsCommitSubject = "chore(config): bootstrap stack from init wizard";
+export const bootstrapCommitSubject = "chore(config): bootstrap empty stack from init";
 
 export const missingGitIdentityHint =
   "set git user.name and user.email in this repo (git config user.name / user.email). The runner does not invent an author.";
@@ -75,7 +75,18 @@ export function setOriginRemote(
   return { ok: true, url: parsed };
 }
 
-export function commitRails(repoRoot: string) {
+export function pushHead(repoRoot: string): { ok: true } | { ok: false; reason: string } {
+  const result = git(repoRoot, ["push", "-u", "origin", "HEAD"]);
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      reason: (result.stderr || result.stdout || "git push failed").trim(),
+    };
+  }
+  return { ok: true };
+}
+
+export function commitBootstrap(repoRoot: string) {
   requireGitIdentity(repoRoot);
   const inside = git(repoRoot, ["rev-parse", "--is-inside-work-tree"]);
   if (inside.status !== 0) {
@@ -109,7 +120,7 @@ export function commitRails(repoRoot: string) {
   if (!files.length) {
     throw new Error("commit aborted: nothing to commit");
   }
-  const commit = git(repoRoot, ["commit", "-m", railsCommitSubject]);
+  const commit = git(repoRoot, ["commit", "-m", bootstrapCommitSubject]);
   if (commit.status !== 0) {
     log((commit.stderr || commit.stdout || "git commit failed").trim());
     throw new Error("git commit failed");

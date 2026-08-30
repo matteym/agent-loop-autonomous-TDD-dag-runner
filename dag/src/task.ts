@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { hasCompose, isEmptyTarget } from "./init/detect.js";
-import { runInit } from "./init/run.js";
+import { missingRemoteHint } from "./init/run.js";
 import { runLoop } from "./loop.js";
 import {
   inferTestCommand,
@@ -10,6 +10,7 @@ import {
   mismatchLangTests,
   testsMatch,
 } from "./inventory.js";
+import { commitMessageValid } from "./commit.js";
 import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
 import { metadataDagPath, metadataDir, metadataTaskPath, repoRoot } from "./paths.js";
 import { createAgentHandle } from "./providers/create.js";
@@ -52,12 +53,6 @@ function log(message: string) {
 function phase(name: string, detail: string) {
   const code = name === "FAIL" ? "31" : name === "PLAN" ? "36" : "32";
   log(paint(code, name) + " " + detail);
-}
-
-function commitMessageValid(message: string): boolean {
-  return /^(feat|fix|refactor|perf|test|docs|style|chore|build|ci)(\([a-z0-9-]+\))?: [a-z][^\n.]*$/.test(
-    message.trim()
-  );
 }
 
 function inferTest(dir: string): { cmd: string; args: string[] } | null {
@@ -250,6 +245,7 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "If a package is missing from inventory (src/backend, src/frontend, src/backend/billing), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths. The node must create the package marker AND tests. Inventoried packages must use their listed test command and must not set optionalCwd.",
     "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy composeBlock/envBlock from dag/src/init/compose.ts. The orchestrator syncs .env and runs docker compose up --build -d.",
     "Each prompt = the human intent scoped to that package only. Append: only this package. Use env for DB/API URLs, never hardcode, never commit .env.",
+    "Do not write .github/workflows. Init already committed .github/workflows/ci.yml. The orchestrator keeps that file current. Missing languages are skipped on CI; failing tests fail the job.",
     "Forbidden: .env in git, git push, --no-verify, terraform apply, fallback-secret, hardcoded localhost in app source, Playwright, Detox.",
     "Inventory:",
     inv,
@@ -296,7 +292,7 @@ async function plan(
 export async function runTask(opts: {
   intent: string;
   dagfile?: string;
-  allowPullRequest?: boolean;
+  push?: boolean;
   provider?: ProviderName;
 }): Promise<number> {
   try {
@@ -307,35 +303,17 @@ export async function runTask(opts: {
       return await runLoop({
         dagPath: opts.dagfile,
         provider: opts.provider,
-        allowPullRequest: opts.allowPullRequest,
+        push: opts.push,
       });
     }
     const needsWizard = isEmptyTarget(repoRoot) && !hasCompose(repoRoot);
-    if (!opts.intent) {
-      if (needsWizard) {
-        const result = await runInit();
-        if (result.status === "refused") {
-          log(result.reason);
-          return 1;
-        }
-        log('next: yarn task "your intent"');
-        return 0;
-      }
-      log('usage: yarn task "your intent"');
+    if (needsWizard) {
+      log(missingRemoteHint);
       return 1;
     }
-    if (needsWizard) {
-      if (!process.stdin.isTTY) {
-        log("run yarn run init on a TTY or yarn run init --yes");
-        return 1;
-      }
-      const result = await runInit();
-      if (result.status !== "ok") {
-        if (result.status === "refused") {
-          log(result.reason);
-        }
-        return 1;
-      }
+    if (!opts.intent) {
+      log('usage: yarn task "your intent"');
+      return 1;
     }
     phase("PLAN", opts.intent);
     const packages = listPackages();
@@ -346,7 +324,7 @@ export async function runTask(opts: {
     return await runLoop({
       dagPath: metadataTaskPath,
       provider: opts.provider,
-      allowPullRequest: opts.allowPullRequest,
+      push: opts.push,
     });
   } catch (err) {
     phase("FAIL", "plan");

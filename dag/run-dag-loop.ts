@@ -25,7 +25,7 @@ async function main() {
   const code = await runTask({
     intent: cli.intent,
     dagfile: cli.dagfile,
-    allowPullRequest: cli.allowPullRequest,
+    push: cli.push,
     provider: cli.provider,
   });
   process.exit(code);

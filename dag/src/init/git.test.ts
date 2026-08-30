@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
-  commitRails,
+  bootstrapCommitSubject,
+  commitBootstrap,
   missingGitIdentityHint,
   parseGithubRemote,
-  railsCommitSubject,
+  pushHead,
   setOriginRemote,
 } from "./git.js";
 
@@ -43,20 +44,46 @@ describe("setOriginRemote", () => {
   });
 });
 
-describe("commitRails", () => {
+describe("pushHead", () => {
+  it("returns git stderr when origin is missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-push-"));
+    try {
+      expect(spawnSync("git", ["init"], { cwd: dir }).status).toBe(0);
+      spawnSync("git", ["config", "user.name", "testrunner"], { cwd: dir });
+      spawnSync("git", ["config", "user.email", "testrunner@example.com"], {
+        cwd: dir,
+      });
+      writeFileSync(join(dir, "readme.txt"), "x\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: dir }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "init"], { cwd: dir }).status
+      ).toBe(0);
+      const pushed = pushHead(dir);
+      expect(pushed.ok).toBe(false);
+      if (!pushed.ok) {
+        expect(pushed.reason.length).toBeGreaterThan(0);
+        expect(pushed.reason).not.toContain("--force");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("commitBootstrap", () => {
   it("refuses to invent a git author", () => {
-    const dir = mkdtempSync(join(tmpdir(), "dag-rails-noid-"));
+    const dir = mkdtempSync(join(tmpdir(), "dag-boot-noid-"));
     try {
       const init = spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
       expect(init.status).toBe(0);
-      expect(() => commitRails(dir)).toThrow(missingGitIdentityHint);
+      expect(() => commitBootstrap(dir)).toThrow(missingGitIdentityHint);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it("commits with a spaced subject as one git -m argument", () => {
-    const dir = mkdtempSync(join(tmpdir(), "dag-rails-"));
+    const dir = mkdtempSync(join(tmpdir(), "dag-boot-"));
     try {
       const init = spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
       expect(init.status).toBe(0);
@@ -69,13 +96,13 @@ describe("commitRails", () => {
       mkdirSync(join(dir, "src"), { recursive: true });
       writeFileSync(join(dir, "src", "health.ts"), "export {}\n");
       writeFileSync(join(dir, ".env"), "APP_PORT=3000\n");
-      commitRails(dir);
+      commitBootstrap(dir);
       const log = spawnSync("git", ["log", "-1", "--format=%s"], {
         cwd: dir,
         encoding: "utf8",
       });
       expect(log.status).toBe(0);
-      expect((log.stdout || "").trim()).toBe(railsCommitSubject);
+      expect((log.stdout || "").trim()).toBe(bootstrapCommitSubject);
       const show = spawnSync("git", ["ls-files", ".env"], {
         cwd: dir,
         encoding: "utf8",

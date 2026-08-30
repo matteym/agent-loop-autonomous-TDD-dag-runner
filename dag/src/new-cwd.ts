@@ -8,7 +8,6 @@ const blockedSegments = new Set([
   "dist",
   "coverage",
   "logs",
-  "afaire",
 ]);
 
 const allowedNewTests = Object.values(testByLang);

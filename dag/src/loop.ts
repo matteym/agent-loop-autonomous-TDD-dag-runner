@@ -1,144 +1,48 @@
 import { spawnSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { join, relative } from "node:path";
-import { inventoryMarkers } from "./inventory.js";
-import { missingGitIdentityHint, requireGitIdentity } from "./init/git.js";
+  appendHistory,
+  archiveFinishedTask,
+  loadState,
+  persistAgentId,
+  saveState,
+} from "./archive.js";
+import { buildRepoBriefing, protocolPreamble } from "./briefing.js";
+import { ciWorkflowRel, syncCiWorkflow } from "./ci.js";
+import { commitMessageValid } from "./commit.js";
+import {
+  gitHead,
+  isControlledDirty,
+  lastCommitSubject,
+  orchestratorCommit,
+  porcelainPath,
+  revertTrackedChanges,
+  runGit,
+} from "./git-run.js";
+import { missingGitIdentityHint, pushHead, requireGitIdentity } from "./init/git.js";
 import { composeReload } from "./init/up.js";
-import { createPullRequest } from "./pr.js";
-import type { ProviderName } from "./cli.js";
 import {
-  donePathFor,
   failuresLogPath,
-  historyPath,
-  historyDir,
   logsDir,
-  metadataAgentIdPath,
   metadataDagPath,
-  metadataDir,
-  metadataStatePath,
   repoRoot,
   resolveDagFile,
 } from "./paths.js";
+import { openOrReusePullRequest } from "./pr.js";
 import { createAgentHandle } from "./providers/create.js";
 import type { AgentHandle } from "./providers/types.js";
 import { resolveProvider } from "./providers/select.js";
+import { initRunLog, log, nodeSeparator, phase } from "./run-log.js";
+import type { ProviderName } from "./cli.js";
 import type { Dag, Task, TestSpec } from "./types.js";
 
-type Phase =
-  | "RED"
-  | "GREEN"
-  | "UP"
-  | "GUARD"
-  | "TEST"
-  | "COMMIT NOW"
-  | "ARCHIVE"
-  | "SKIP"
-  | "FAIL";
-
-const protocolPreamble =
-  "Follow .cursor/skills/agent-loop/SKILL.md and .cursor/rules/agent-loop.mdc. " +
-  "This is one agent turn. Do not git push, --no-verify, terraform apply, or terraform destroy. " +
-  "Run only the test commands listed for this node in the briefing.";
-const blockedCommitPaths = [
-  ".env",
-  "afaire",
-  "app-storage-service-account-key.json",
-];
-const skipWalkNames = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  ".venv",
-  "coverage",
-  ".next",
-  "logs",
-  "dag",
-]);
 const maxFixRounds = 5;
 const maxRedAttempts = 2;
 
-let runLogPath = "";
 let nodesOk = 0;
 let activeDagPath = metadataDagPath;
 const runStartedAt = Date.now();
-
-function colorEnabled(): boolean {
-  return Boolean(process.stderr.isTTY);
-}
-
-function paint(code: string, text: string): string {
-  if (!colorEnabled()) {
-    return text;
-  }
-  return "\u001b[" + code + "m" + text + "\u001b[0m";
-}
-
-function phaseColor(phase: Phase): string {
-  if (phase === "FAIL" || phase === "RED") {
-    return paint("31", phase);
-  }
-  if (phase === "SKIP") {
-    return paint("33", phase);
-  }
-  if (phase === "GREEN" || phase === "ARCHIVE") {
-    return paint("32", phase);
-  }
-  return paint("36", phase);
-}
-
-function redact(text: string): string {
-  return text
-    .replace(/CURSOR_API_KEY[=:\s]+\S+/gi, "CURSOR_API_KEY=***")
-    .replace(/CURSOR_SDK_API[=:\s]+\S+/gi, "CURSOR_SDK_API=***")
-    .replace(/ANTHROPIC_API_KEY[=:\s]+\S+/gi, "ANTHROPIC_API_KEY=***")
-    .replace(/CLAUDE_API_KEY[=:\s]+\S+/gi, "CLAUDE_API_KEY=***")
-    .replace(/JWT_SECRET[=:\s]+\S+/gi, "JWT_SECRET=***")
-    .replace(/Bearer\s+\S+/gi, "Bearer ***")
-    .replace(/refresh_token[=:\s]+\S+/gi, "refresh_token=***");
-}
-
-function runStamp(d: Date): string {
-  const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  return (
-    String(d.getFullYear()) +
-    p(d.getMonth() + 1) +
-    p(d.getDate()) +
-    "-" +
-    p(d.getHours()) +
-    p(d.getMinutes()) +
-    p(d.getSeconds())
-  );
-}
-
-function initRunLog() {
-  mkdirSync(logsDir, { recursive: true });
-  mkdirSync(historyDir, { recursive: true });
-  runLogPath = join(logsDir, "run-" + runStamp(new Date()) + ".log");
-}
-
-function log(message: string) {
-  const safe = redact(message);
-  const stamped = new Date().toISOString() + " " + safe;
-  process.stderr.write("[dag] " + safe + "\n");
-  if (runLogPath) {
-    appendFileSync(runLogPath, stamped + "\n");
-  }
-}
-
-function phase(name: Phase, detail: string) {
-  log(phaseColor(name) + " " + detail);
-}
-
-function nodeSeparator(id: string) {
-  log(paint("90", "──────── " + id + " ────────"));
-}
 
 function loadDag(dagPath: string): Dag {
   if (!existsSync(dagPath)) {
@@ -146,149 +50,6 @@ function loadDag(dagPath: string): Dag {
     process.exit(1);
   }
   return JSON.parse(readFileSync(dagPath, "utf8")) as Dag;
-}
-
-function writeJson(filePath: string, value: unknown) {
-  writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n");
-}
-
-function loadDoneFile(dagPath: string): { tasks: Task[] } {
-  const donePath = donePathFor(dagPath);
-  if (!existsSync(donePath)) {
-    return { tasks: [] };
-  }
-  const parsed = JSON.parse(readFileSync(donePath, "utf8")) as { tasks?: Task[] };
-  return { tasks: parsed.tasks || [] };
-}
-
-function archiveFinishedTask(dag: Dag, dagPath: string, task: Task) {
-  const done = loadDoneFile(dagPath);
-  if (!done.tasks.some((entry) => entry.id === task.id)) {
-    done.tasks.push(task);
-  }
-  writeJson(donePathFor(dagPath), done);
-  dag.tasks = dag.tasks.filter((entry) => entry.id !== task.id);
-  writeJson(dagPath, dag);
-}
-
-function appendHistory(entry: {
-  ts: string;
-  dagFile: string;
-  nodeId: string;
-  commit: string;
-  sha: string;
-  durationMs: number;
-  status: "finished" | "failed";
-}) {
-  mkdirSync(historyDir, { recursive: true });
-  appendFileSync(historyPath, JSON.stringify(entry) + "\n");
-}
-
-function loadState(): { done: string[] } {
-  if (!existsSync(metadataStatePath)) {
-    return { done: [] };
-  }
-  return JSON.parse(readFileSync(metadataStatePath, "utf8")) as { done: string[] };
-}
-
-function saveState(done: string[]) {
-  mkdirSync(metadataDir, { recursive: true });
-  writeFileSync(metadataStatePath, JSON.stringify({ done }, null, 2));
-}
-
-function persistAgentId(agentId: string) {
-  mkdirSync(metadataDir, { recursive: true });
-  writeFileSync(metadataAgentIdPath, agentId + "\n", "utf8");
-}
-
-function dirHasMarker(dir: string): boolean {
-  for (const marker of inventoryMarkers) {
-    if (existsSync(join(dir, marker))) {
-      return true;
-    }
-  }
-  return existsSync(join(dir, "tests"));
-}
-
-function markerLabels(dir: string): string[] {
-  const marks: string[] = [];
-  for (const marker of inventoryMarkers) {
-    if (existsSync(join(dir, marker))) {
-      marks.push(marker);
-    }
-  }
-  if (existsSync(join(dir, "tests"))) {
-    marks.push("tests/");
-  }
-  return marks;
-}
-
-function walkInventory(dir: string, depth: number, out: string[]) {
-  if (dirHasMarker(dir)) {
-    const rel = relative(repoRoot, dir).replace(/\\/g, "/") || ".";
-    const marks = markerLabels(dir);
-    out.push(marks.length ? rel + " [" + marks.join(", ") + "]" : rel);
-  }
-  if (depth >= 3) {
-    return;
-  }
-  try {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || skipWalkNames.has(entry.name) || entry.name.startsWith(".")) {
-        continue;
-      }
-      walkInventory(join(dir, entry.name), depth + 1, out);
-    }
-  } catch {
-    return;
-  }
-}
-
-function listRepoPackages(): string[] {
-  const lines: string[] = [];
-  walkInventory(repoRoot, 0, lines);
-  const unique = [...new Set(lines)].sort();
-  return unique.length ? unique : ["(empty)"];
-}
-
-function formatNodeTests(tests: TestSpec[]): string[] {
-  if (!tests.length) {
-    return ["none"];
-  }
-  return tests.map((spec) => {
-    const optional = spec.optionalCwd ? "new " : "";
-    return optional + spec.cmd + " " + spec.args.join(" ") + " (cwd " + spec.cwd + ")";
-  });
-}
-
-function buildRepoBriefing(task: Task, commitNow: boolean): string {
-  const forbidden = [
-    ...blockedCommitPaths,
-    "**/.env",
-    "**/.env.*",
-    "dag/metadata/state.json",
-    "dag/metadata/agent-id",
-    "dag/logs/failures.log",
-    "dag/metadata/dag.json",
-    "*.done.json",
-    "dag/history/nodes.jsonl",
-    "git push / --no-verify",
-    "terraform apply / terraform destroy",
-  ];
-  if (!commitNow) {
-    forbidden.push("git commit (wait for COMMIT NOW)");
-  }
-  return [
-    "Repo briefing (deterministic, not extra scope). Ticket text above wins.",
-    "Exact git commit subject (COMMIT NOW only, copy verbatim):",
-    task.commit,
-    "Repo packages:",
-    ...listRepoPackages().map((line) => "- " + line),
-    "This node tests:",
-    ...formatNodeTests(task.tests).map((line) => "- " + line),
-    "Forbidden paths / actions:",
-    ...forbidden.map((line) => "- " + line),
-  ].join("\n");
 }
 
 function tddEnabled(task: Task): boolean {
@@ -318,87 +79,6 @@ function runTests(tests: TestSpec[]): { ok: boolean; output: string } {
     }
   }
   return { ok: true, output };
-}
-
-function commitMessageValid(message: string): boolean {
-  return /^(feat|fix|refactor|perf|test|docs|style|chore|build|ci)(\([a-z0-9-]+\))?: [a-z][^\n.]*$/.test(
-    message.trim()
-  );
-}
-
-function runGit(args: string[]) {
-  return spawnSync("git", args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-}
-
-function isBlockedCommitPath(file: string): boolean {
-  if (
-    blockedCommitPaths.some(
-      (blocked) =>
-        file === blocked ||
-        file.endsWith("/" + blocked) ||
-        file.endsWith("/.env") ||
-        file.includes("/.env.")
-    )
-  ) {
-    return true;
-  }
-  const n = file.replace(/\\/g, "/");
-  return (
-    n.endsWith("failures.log") ||
-    n.endsWith("metadata/agent-id") ||
-    n.endsWith("history/nodes.jsonl") ||
-    /(?:^|\/)logs\/.*\.log$/.test(n)
-  );
-}
-
-function stagedTouchesBlockedPath(): boolean {
-  const diff = runGit(["diff", "--cached", "--name-only"]);
-  const files = (diff.stdout || "").split(/\r?\n/).filter(Boolean);
-  return files.some((file: string) => isBlockedCommitPath(file));
-}
-
-function orchestratorCommit(message: string, allowEmpty: boolean | undefined): boolean {
-  if (!commitMessageValid(message)) {
-    log("commit message rejected: " + message);
-    return false;
-  }
-  runGit(["add", "-A"]);
-  runGit([
-    "reset",
-    "HEAD",
-    "--",
-    "dag/logs/failures.log",
-    "dag/metadata/agent-id",
-    "dag/history/nodes.jsonl",
-  ]);
-  if (stagedTouchesBlockedPath()) {
-    runGit(["reset", "HEAD"]);
-    log("commit aborted: staged blocked path");
-    return false;
-  }
-  const commit = runGit(["commit", "-m", message]);
-  if (commit.status === 0) {
-    log("committed " + message);
-    return true;
-  }
-  const text = (commit.stdout || "") + (commit.stderr || "");
-  if (allowEmpty && /nothing to commit/i.test(text)) {
-    log("no changes to commit for this node");
-    return true;
-  }
-  log("commit failed: " + text);
-  return false;
-}
-
-function gitHead(): string {
-  return (runGit(["rev-parse", "HEAD"]).stdout || "").trim();
-}
-
-function lastCommitSubject(): string {
-  return (runGit(["log", "-1", "--format=%s"]).stdout || "").trim();
 }
 
 async function runAgentTask(
@@ -448,6 +128,13 @@ function applyInfra(): { ok: boolean; output: string } {
   return composeReload(repoRoot);
 }
 
+function applyCi(): { ok: boolean; output: string } {
+  phase("CI", ciWorkflowRel);
+  const synced = syncCiWorkflow(repoRoot);
+  log(synced.reason);
+  return { ok: true, output: synced.reason };
+}
+
 function validateNode(tests: TestSpec[]): { ok: boolean; output: string } {
   const infra = applyInfra();
   if (!infra.ok) {
@@ -457,23 +144,17 @@ function validateNode(tests: TestSpec[]): { ok: boolean; output: string } {
   if (!guard.ok) {
     return guard;
   }
-  return runTests(tests);
-}
-
-function revertTrackedChanges() {
-  log("reverting tracked files with git reset --hard HEAD");
-  runGit(["reset", "--hard", "HEAD"]);
+  const tested = runTests(tests);
+  if (!tested.ok) {
+    return tested;
+  }
+  return applyCi();
 }
 
 function recordFailure(taskId: string, output: string) {
   const stamp = new Date().toISOString();
   const body =
-    stamp +
-    " node=" +
-    taskId +
-    "\n" +
-    output.slice(0, 8000) +
-    "\n---\n";
+    stamp + " node=" + taskId + "\n" + output.slice(0, 8000) + "\n---\n";
   mkdirSync(logsDir, { recursive: true });
   appendFileSync(failuresLogPath, body, "utf8");
   log("wrote " + failuresLogPath);
@@ -506,31 +187,6 @@ async function runTddRed(agent: AgentHandle, task: Task): Promise<void> {
   } else {
     log("tdd red confirmed for " + task.id);
   }
-}
-
-function porcelainPath(line: string): string {
-  const rest = line.slice(3).trim();
-  const arrow = rest.indexOf(" -> ");
-  const raw = arrow >= 0 ? rest.slice(arrow + 4) : rest;
-  return raw.replace(/\\/g, "/").replace(/^"/, "").replace(/"$/, "");
-}
-
-function isControlledDirty(file: string): boolean {
-  const n = file.replace(/\\/g, "/");
-  if (
-    n === "dag/metadata/state.json" ||
-    n === "dag/metadata/task.json" ||
-    n === "dag/metadata/agent-id"
-  ) {
-    return true;
-  }
-  if (n.startsWith("dag/metadata/") && n.endsWith(".done.json")) {
-    return true;
-  }
-  if (n.startsWith("dag/history/")) {
-    return true;
-  }
-  return n.startsWith("dag/logs/") && n.endsWith(".log");
 }
 
 function preflight() {
@@ -571,7 +227,7 @@ async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean
       agent,
       "DAG node " +
         task.id +
-        " COMMIT NOW. Stage ticket files. Do not stage .env, dag/metadata/state.json, dag/metadata/agent-id, or dag/logs/failures.log. Run git commit -m " +
+        " COMMIT NOW. Stage ticket files and .github/workflows/ci.yml if present. Do not stage .env, dag/metadata/state.json, dag/metadata/agent-id, or dag/logs/failures.log. Run git commit -m " +
         JSON.stringify(task.commit) +
         " with that subject only. Use the existing git user.name / user.email (do not invent an author).",
       task,
@@ -584,12 +240,30 @@ async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean
   if (after !== before) {
     if (lastCommitSubject() === task.commit) {
       log("committed " + task.commit);
+      commitGeneratedCi();
       return true;
     }
     log("agent commit subject mismatch, rewriting");
     runGit(["reset", "--soft", "HEAD~1"]);
   }
-  return orchestratorCommit(task.commit, task.allowEmptyCommit);
+  const ok = orchestratorCommit(task.commit, task.allowEmptyCommit);
+  if (ok) {
+    commitGeneratedCi();
+  }
+  return ok;
+}
+
+function commitGeneratedCi(): void {
+  runGit(["add", "--", ciWorkflowRel]);
+  const staged = (runGit(["diff", "--cached", "--name-only"]).stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\\/g, "/"))
+    .filter(Boolean);
+  if (!staged.includes(ciWorkflowRel)) {
+    return;
+  }
+  phase("CI", "commit " + ciWorkflowRel);
+  orchestratorCommit("chore(ci): sync workflow", false);
 }
 
 function endSummary(dag: Dag) {
@@ -609,7 +283,7 @@ function endSummary(dag: Dag) {
 export type LoopOpts = {
   dagPath?: string;
   provider?: ProviderName;
-  allowPullRequest?: boolean;
+  push?: boolean;
 };
 
 export async function runLoop(opts: LoopOpts = {}): Promise<number> {
@@ -724,15 +398,28 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     });
     nodesOk += 1;
     log("finished " + task.id);
+    if (opts.push !== false) {
+      phase("PUSH", "origin HEAD");
+      const pushed = pushHead(repoRoot);
+      if (!pushed.ok) {
+        log("push failed: " + pushed.reason);
+        endSummary(dag);
+        return 2;
+      }
+      phase("PR", dag.title);
+      const pr = openOrReusePullRequest(
+        repoRoot,
+        dag.title,
+        "Automated DAG run: " + dag.title
+      );
+      if (!pr.ok) {
+        log("pull request failed: " + pr.output);
+        endSummary(dag);
+        return 2;
+      }
+      log("pull request " + pr.output);
+    }
   }
   endSummary(dag);
-  if (opts.allowPullRequest) {
-    const pr = createPullRequest(repoRoot, dag.title, "Automated DAG run: " + dag.title);
-    if (!pr.ok) {
-      log("pull request failed: " + pr.output);
-      return 1;
-    }
-    log("pull request " + pr.output);
-  }
   return 0;
 }
