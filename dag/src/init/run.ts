@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { defaultPort, validatePort, type InitPort } from "./port.js";
-import { writeBootstrap } from "./bootstrap.js";
+import { copyEngineCursor, writeBootstrap } from "./bootstrap.js";
 import { syncCiWorkflow } from "../ci.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
@@ -14,7 +14,14 @@ import {
   setOriginRemote,
 } from "./git.js";
 import { log, phase } from "./log.js";
-import { metadataInitDefaultsPath, repoRoot } from "../paths.js";
+import { pluginGitignoreLine } from "../layout.js";
+import {
+  engineRoot,
+  metadataInitDefaultsPath,
+  nestedPlugin,
+  pluginDirName,
+  repoRoot,
+} from "../paths.js";
 
 export type InitOpts = {
   force?: boolean;
@@ -71,7 +78,8 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
       return refused;
     }
   }
-  if (!isEmptyTarget(repoRoot) || hasCompose(repoRoot)) {
+  const pluginSkip = pluginDirName ? [pluginDirName] : [];
+  if (!isEmptyTarget(repoRoot, pluginSkip) || hasCompose(repoRoot)) {
     const refused = refuseUnlessForce(
       opts.force,
       "refusing: repo is not empty. use --force to overwrite"
@@ -89,7 +97,12 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   writeFileSync(join(repoRoot, ".env"), env.dotenv);
   writeFileSync(join(repoRoot, ".env.example"), env.example);
   phase("BOOTSTRAP", "src/backend src/frontend");
-  writeBootstrap(repoRoot);
+  const extraIgnore = pluginDirName ? [pluginGitignoreLine(pluginDirName)] : [];
+  writeBootstrap(repoRoot, extraIgnore);
+  if (nestedPlugin) {
+    phase("PLUGIN", pluginDirName + " gitignored; .cursor copied to parent");
+    copyEngineCursor(engineRoot, repoRoot);
+  }
   phase("CI", ".github/workflows/ci.yml");
   syncCiWorkflow(repoRoot);
   commitBootstrap(repoRoot);

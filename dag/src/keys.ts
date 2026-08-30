@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { dagDir, repoRoot } from "./paths.js";
+import { dagDir, engineRoot, repoRoot } from "./paths.js";
 
 function stripQuotes(value: string): string {
   const trimmed = value.trim();
@@ -45,6 +45,7 @@ const claudeNames = ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"];
 function mergeFiles(names: string[]): string | undefined {
   const files = [
     join(repoRoot, ".env"),
+    join(engineRoot, ".env"),
     join(dagDir, ".env"),
     join(repoRoot, "Server", ".env"),
   ];

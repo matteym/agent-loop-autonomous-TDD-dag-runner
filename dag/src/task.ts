@@ -12,7 +12,7 @@ import {
 } from "./inventory.js";
 import { commitMessageValid } from "./commit.js";
 import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
-import { metadataDagPath, metadataDir, metadataTaskPath, repoRoot } from "./paths.js";
+import { metadataDagPath, metadataDir, metadataTaskPath, pluginDirName, repoRoot } from "./paths.js";
 import { createAgentHandle } from "./providers/create.js";
 import { resolveProvider } from "./providers/select.js";
 import type { ProviderName } from "./cli.js";
@@ -78,7 +78,12 @@ function walkPackages(dir: string, depth: number, out: Pkg[]) {
   }
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || skipWalkNames.has(entry.name) || entry.name.startsWith(".")) {
+      if (
+        !entry.isDirectory() ||
+        skipWalkNames.has(entry.name) ||
+        entry.name.startsWith(".") ||
+        (pluginDirName !== null && entry.name === pluginDirName)
+      ) {
         continue;
       }
       walkPackages(join(dir, entry.name), depth + 1, out);
@@ -228,7 +233,9 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
       model +
       '","cwd":"..","tasks":[{"id":"kebab-id","prompt":"string","commit":"feat(scope): subject","tests":[{"cwd":"rel/path","cmd":"yarn","args":["test"]}],"allowEmptyCommit":false}]}',
     "Human intent: " + intent,
-    "Use model " + model + " and cwd '..'.",
+    "Use model " +
+      model +
+      ". Write product files in the product repo root. If this engine is nested inside another git repo, that parent is the product; do not put app code in the engine/plugin folder.",
     "Split the intent into features. 1 feature = 1 task. Tiny intent = 1 task. A full app or a complete module (example: auth = register, login, jwt, refresh, logout) = several tasks, max " +
       maxPlanTasks +
       ", dependency order. Several tasks MAY share the same package when they are sequential features. Do not cram a whole module into one node.",
@@ -242,7 +249,9 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "Infer language from the human intent. FastAPI = Python. gin = Go. Express = TypeScript. Polyglot intent = one language per task, correct runner each time.",
     "If a package has no-test-script you may not point tests at it unless id is scaffold with tests [] and allowEmptyCommit true.",
     "Init only created empty src/backend and src/frontend folders. Put API code under src/backend or src/backend/<service> if the intent is multiple services. Put UI under src/frontend. Monorepo vs microservices is decided by THIS intent, not init.",
-    "If a package is missing from inventory (src/backend, src/frontend, src/backend/billing), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths. The node must create the package marker AND tests. Inventoried packages must use their listed test command and must not set optionalCwd.",
+    "If a package is missing from inventory (src/backend, src/frontend, src/backend/billing), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
+      (pluginDirName ? ", " + pluginDirName : "") +
+      ". The node must create the package marker AND tests. Inventoried packages must use their listed test command and must not set optionalCwd.",
     "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy composeBlock/envBlock from dag/src/init/compose.ts. The orchestrator syncs .env and runs docker compose up --build -d.",
     "Each prompt = the human intent scoped to that package only. Append: only this package. Use env for DB/API URLs, never hardcode, never commit .env.",
     "Do not write .github/workflows. Init already committed .github/workflows/ci.yml. The orchestrator keeps that file current. Missing languages are skipped on CI; failing tests fail the job.",
@@ -306,7 +315,7 @@ export async function runTask(opts: {
         push: opts.push,
       });
     }
-    const needsWizard = isEmptyTarget(repoRoot) && !hasCompose(repoRoot);
+    const needsWizard = isEmptyTarget(repoRoot, pluginDirName ? [pluginDirName] : []) && !hasCompose(repoRoot);
     if (needsWizard) {
       log(missingRemoteHint);
       return 1;

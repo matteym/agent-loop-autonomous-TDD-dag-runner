@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { backendDir, frontendDir } from "./port.js";
 
 const ignoreLines = [
@@ -22,7 +22,7 @@ function writeFile(path: string, contents: string) {
   writeFileSync(path, contents);
 }
 
-function mergeGitignore(repoRoot: string) {
+function mergeGitignore(repoRoot: string, extraIgnore: string[]) {
   const path = join(repoRoot, ".gitignore");
   const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
   const have = new Set(
@@ -31,7 +31,7 @@ function mergeGitignore(repoRoot: string) {
       .map((line) => line.trim())
       .filter(Boolean)
   );
-  const extra = ignoreLines.filter((line) => !have.has(line));
+  const extra = [...ignoreLines, ...extraIgnore].filter((line) => !have.has(line));
   if (!extra.length && existing) {
     return;
   }
@@ -40,8 +40,19 @@ function mergeGitignore(repoRoot: string) {
   writeFileSync(path, next);
 }
 
-export function writeBootstrap(repoRoot: string): void {
-  mergeGitignore(repoRoot);
+export function copyEngineCursor(engineRoot: string, productRoot: string): void {
+  if (resolve(engineRoot) === resolve(productRoot)) {
+    return;
+  }
+  const from = join(engineRoot, ".cursor");
+  if (!existsSync(from)) {
+    return;
+  }
+  cpSync(from, join(productRoot, ".cursor"), { recursive: true, force: true });
+}
+
+export function writeBootstrap(repoRoot: string, extraIgnore: string[] = []): void {
+  mergeGitignore(repoRoot, extraIgnore);
   writeFile(join(repoRoot, backendDir, ".gitkeep"), "");
   writeFile(join(repoRoot, frontendDir, ".gitkeep"), "");
 }
