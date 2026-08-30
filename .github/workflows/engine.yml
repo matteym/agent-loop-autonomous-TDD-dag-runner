@@ -1,0 +1,23 @@
+# Engine tests for this repo. yarn run init writes a different
+# .github/workflows/ci.yml for product apps and prunes dag/.
+name: engine
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dag
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: dag/yarn.lock
+      - run: yarn
+      - run: yarn test
