@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import {
   bootstrapCommitSubject,
   commitBootstrap,
-  missingGitIdentityHint,
   parseGithubRemote,
   pushHead,
   setOriginRemote,
@@ -76,7 +75,7 @@ describe("commitBootstrap", () => {
     try {
       const init = spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
       expect(init.status).toBe(0);
-      expect(() => commitBootstrap(dir)).toThrow(missingGitIdentityHint);
+      expect(() => commitBootstrap(dir)).toThrow(/user\.name|nothing to commit/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

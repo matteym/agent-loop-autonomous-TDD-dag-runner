@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { isPluginWalkDir } from "./paths.js";
 
 export const inventoryMarkers = [
   "package.json",
@@ -158,6 +159,9 @@ function walkTestable(root: string, dir: string, depth: number, out: TestablePkg
   }
   for (const entry of entries) {
     if (!entry.isDirectory() || skipInventoryWalk.has(entry.name) || entry.name.startsWith(".")) {
+      continue;
+    }
+    if (isPluginWalkDir(entry.name)) {
       continue;
     }
     walkTestable(root, join(dir, entry.name), depth + 1, out);

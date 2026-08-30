@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { blockedCommitPaths } from "./git-run.js";
 import { inventoryMarkers } from "./inventory.js";
-import { repoRoot } from "./paths.js";
+import { repoRoot, isPluginWalkDir } from "./paths.js";
 import type { Task, TestSpec } from "./types.js";
 
 export const protocolPreamble =
@@ -54,7 +54,12 @@ function walkInventory(dir: string, depth: number, out: string[]) {
   }
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || skipWalkNames.has(entry.name) || entry.name.startsWith(".")) {
+      if (
+        !entry.isDirectory() ||
+        skipWalkNames.has(entry.name) ||
+        entry.name.startsWith(".") ||
+        isPluginWalkDir(entry.name)
+      ) {
         continue;
       }
       walkInventory(join(dir, entry.name), depth + 1, out);
