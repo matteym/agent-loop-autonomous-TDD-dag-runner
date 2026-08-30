@@ -328,7 +328,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         agent,
         "DAG node " +
           task.id +
-          " TDD GREEN. Implement minimal production code for this ticket. Put backend code in src/backend and UI in src/frontend. Match the node language (package.json+yarn / pyproject+uv pytest / go.mod+go test / Cargo.toml+cargo test). If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
+          " TDD GREEN. Implement minimal production code for this ticket. Put application code in src/. Match the node language (package.json+yarn / pyproject+uv pytest / go.mod+go test / Cargo.toml+cargo test). If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
           task.prompt,
         task
       );

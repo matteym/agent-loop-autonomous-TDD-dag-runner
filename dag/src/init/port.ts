@@ -1,5 +1,4 @@
-export const backendDir = "src/backend";
-export const frontendDir = "src/frontend";
+export const srcDir = "src";
 
 export type InitPort = {
   appPort: number;

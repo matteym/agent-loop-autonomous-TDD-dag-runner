@@ -96,7 +96,7 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   writeFileSync(join(repoRoot, "docker-compose.yml"), renderCompose());
   writeFileSync(join(repoRoot, ".env"), env.dotenv);
   writeFileSync(join(repoRoot, ".env.example"), env.example);
-  phase("BOOTSTRAP", "src/backend src/frontend");
+  phase("BOOTSTRAP", "src");
   const extraIgnore = pluginDirName ? [pluginGitignoreLine(pluginDirName)] : [];
   writeBootstrap(repoRoot, extraIgnore);
   if (nestedPlugin) {

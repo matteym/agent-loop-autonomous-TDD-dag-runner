@@ -62,9 +62,9 @@ yarn run init --remote=https://github.com/OWNER/REPO.git --yes
 yarn run init --force --yes --remote=https://github.com/OWNER/REPO.git
 ```
 
-`--remote` / `--repo` is **required** (GitHub https or ssh). When this engine is nested inside another git repo, init writes on **that parent** (compose, `src/backend`, `src/frontend`, `.cursor`, `.github/workflows/ci.yml`), adds this folder to the parent `.gitignore`, commits on `agent/init`, sets the **parent** `origin`, and `git push -u origin HEAD` (never `--force`). `--yes` confirms without a TTY. `--force` overwrites a non-empty product / `Server/src`, and replaces origin if it already exists.
+`--remote` / `--repo` is **required** (GitHub https or ssh). When this engine is nested inside another git repo, init writes on **that parent** (compose, `src/`, `.cursor`, `.github/workflows/ci.yml`), adds this folder to the parent `.gitignore`, commits on `agent/init`, sets the **parent** `origin`, and `git push -u origin HEAD` (never `--force`). `--yes` confirms without a TTY. `--force` overwrites a non-empty product / `Server/src`, and replaces origin if it already exists.
 
-Init is silent: creates `src/backend`, `src/frontend`, empty Compose, `.env` (`APP_PORT`), copies `.cursor` to the product, and the CI workflow. Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
+Init is silent: creates `src/`, empty Compose, `.env` (`APP_PORT`), copies `.cursor` to the product, and the CI workflow. Architecture and datastores come from `yarn task`. If a task edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` and runs `docker compose up --build -d`.
 
 The Action always lists TypeScript (`yarn test`), Python (`uv` + pytest), Go (`go test ./...`), and Rust (`cargo test`). If a language has no package in the tree, or the tool is missing, that step is skipped and the job stays green. Failed tests on a language that **is** present fail the job.
 

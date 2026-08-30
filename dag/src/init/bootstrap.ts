@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { backendDir, frontendDir } from "./port.js";
+import { srcDir } from "./port.js";
 
 const ignoreLines = [
   ".env",
@@ -53,6 +53,5 @@ export function copyEngineCursor(engineRoot: string, productRoot: string): void 
 
 export function writeBootstrap(repoRoot: string, extraIgnore: string[] = []): void {
   mergeGitignore(repoRoot, extraIgnore);
-  writeFile(join(repoRoot, backendDir, ".gitkeep"), "");
-  writeFile(join(repoRoot, frontendDir, ".gitkeep"), "");
+  writeFile(join(repoRoot, srcDir, ".gitkeep"), "");
 }

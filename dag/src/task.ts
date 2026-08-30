@@ -248,8 +248,8 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "- Rust (axum, actix): Cargo.toml + tests cmd cargo args [test]. Never yarn test on a Rust node.",
     "Infer language from the human intent. FastAPI = Python. gin = Go. Express = TypeScript. Polyglot intent = one language per task, correct runner each time.",
     "If a package has no-test-script you may not point tests at it unless id is scaffold with tests [] and allowEmptyCommit true.",
-    "Init only created empty src/backend and src/frontend folders. Put API code under src/backend or src/backend/<service> if the intent is multiple services. Put UI under src/frontend. Monorepo vs microservices is decided by THIS intent, not init.",
-    "If a package is missing from inventory (src/backend, src/frontend, src/backend/billing), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
+    "Init only created an empty src folder. Put application code under src/ (or src/<service> if the intent is multiple services). Do not create src/backend or src/frontend unless the intent asks for that split. Architecture is decided by THIS intent, not init.",
+    "If a package is missing from inventory (src, src/api), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
       (pluginDirName ? ", " + pluginDirName : "") +
       ". The node must create the package marker AND tests. Inventoried packages must use their listed test command and must not set optionalCwd.",
     "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy composeBlock/envBlock from dag/src/init/compose.ts. The orchestrator syncs .env and runs docker compose up --build -d.",

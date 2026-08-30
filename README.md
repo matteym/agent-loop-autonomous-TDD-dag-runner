@@ -67,7 +67,7 @@ Copy `dag/` + `.cursor/` into any empty repo if you want the engine **without** 
 
 Init writes **on the product repo** (the git work tree that contains this engine, one level above the plugin folder when nested):
 
-- `src/backend` / `src/frontend` (empty — architecture comes from the task)
+- `src/` (empty — architecture comes from the task)
 - Compose stub + `APP_PORT`
 - `.cursor/` copied from the plugin (skill, rule, hooks)
 - `.github/workflows/ci.yml` — `yarn test`, pytest, `go test`, `cargo test`
