@@ -27,6 +27,7 @@ import {
   pushHint,
   requireGitIdentity,
 } from "./init/git.js";
+import { syncProductEnv } from "./init/env-sync.js";
 import { composeReload } from "./init/up.js";
 import {
   failuresLogPath,
@@ -126,7 +127,15 @@ function runGuard(): { ok: boolean; output: string } {
   return { ok: true, output };
 }
 
+function syncEnv(): void {
+  const added = syncProductEnv(repoRoot);
+  if (added.length) {
+    log("synced .env keys: " + added.join(","));
+  }
+}
+
 function applyInfra(): { ok: boolean; output: string } {
+  syncEnv();
   const diff = runGit(["diff", "HEAD", "--", "docker-compose.yml", ".env.example"]);
   if (!(diff.stdout || "").trim()) {
     return { ok: true, output: "infra unchanged" };
@@ -344,6 +353,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   }
   log("provider=" + selected.provider);
   preflight();
+  syncEnv();
   if (opts.push !== false) {
     warnIfOriginDiverged();
   }
@@ -369,6 +379,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     nodeSeparator(task.id);
     const nodeStarted = Date.now();
     log("start " + task.id);
+    syncEnv();
     if (tddEnabled(task)) {
       await runTddRed(agent, task);
       phase("GREEN", task.id);

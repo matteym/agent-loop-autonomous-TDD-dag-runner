@@ -82,6 +82,8 @@ On an empty repo, `yarn task` does not replace init. Run `yarn run init --remote
 
 Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse an **open** PR; a closed PR is ignored and a new one is opened). When the DAG finishes, merge that PR into `main` (`gh pr merge --merge`, or `--auto` if checks are still running). Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips push, PR, and merge.
 
+At loop start and before every node, the orchestrator re-reads `.env` / `.env.example`: copies vendor/typo aliases (`XAI_API_KEY` → `GROK_API_KEY`, `X_ACCES_TOKEN` → `X_ACCESS_TOKEN`) onto canonical names without overwriting a non-empty canonical value, and derives `*_HOST` URLs from docker hostnames for CLI use on the machine.
+
 ## Layout
 
 | Path | Role |

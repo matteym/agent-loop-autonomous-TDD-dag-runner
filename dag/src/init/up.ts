@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { syncEnvFromExample } from "./env-sync.js";
+import { syncProductEnv } from "./env-sync.js";
 import { log } from "./log.js";
 
 function winShell(): boolean {
@@ -18,9 +18,9 @@ export function composeHasRealServices(repoRoot: string): boolean {
 }
 
 export function composeReload(repoRoot: string): { ok: boolean; output: string } {
-  const added = syncEnvFromExample(repoRoot);
+  const added = syncProductEnv(repoRoot);
   if (added.length) {
-    log("synced .env keys from .env.example: " + added.join(","));
+    log("synced .env keys: " + added.join(","));
   }
   if (!composeHasRealServices(repoRoot)) {
     return { ok: true, output: "compose has no services yet" };
