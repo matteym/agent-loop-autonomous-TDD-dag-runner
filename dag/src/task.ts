@@ -128,7 +128,11 @@ function extractJson(text: string): unknown {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
-export function validateDag(dag: Dag, packages: Pkg[]): string | null {
+export function validateDag(
+  dag: Dag,
+  packages: Pkg[],
+  root: string = repoRoot
+): string | null {
   if (!dag.title || !dag.model || dag.cwd !== ".." || !Array.isArray(dag.tasks)) {
     return "dag must have title, model, cwd '..', and tasks[]";
   }
@@ -166,7 +170,7 @@ export function validateDag(dag: Dag, packages: Pkg[]): string | null {
       const cwd = spec.cwd.replace(/\\/g, "/");
       const pkg = byRel.get(cwd);
       if (pkg) {
-        if (!existsSync(join(repoRoot, cwd))) {
+        if (!existsSync(join(root, cwd))) {
           return task.id + " cwd missing: " + spec.cwd;
         }
         if (!pkg.test) {
@@ -192,7 +196,7 @@ export function validateDag(dag: Dag, packages: Pkg[]): string | null {
       if (!safe) {
         return task.id + " unsafe new cwd: " + spec.cwd;
       }
-      if (existsSync(join(repoRoot, safe)) && !isFillableCwd(repoRoot, safe)) {
+      if (existsSync(join(root, safe)) && !isFillableCwd(root, safe)) {
         return task.id + " cwd exists but is not an inventoried package: " + spec.cwd;
       }
       if (!isAllowedNewTestSpec(spec.cmd, spec.args)) {

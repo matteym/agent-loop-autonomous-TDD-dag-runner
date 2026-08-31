@@ -18,7 +18,7 @@ Operator manual: `dag/README.md`. Default: clone this engine inside a product gi
 | Actor | Owns | Never |
 |---|---|---|
 | Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/task.json` / `*.done.json` |
-| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node fetch+rebase onto origin then `git push` + `gh pr create` (reuse if the PR exists) unless `--no-push`. Never `--force`; never drop remote commits. | cloud Agent VM, live OAuth, EAS, `terraform apply` |
+| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node fetch+rebase onto origin then `git push` + `gh pr create` (reuse only an **open** PR) unless `--no-push`; when the DAG finishes, `gh pr merge` into `main`. Never `--force`; never drop remote commits. | cloud Agent VM, live OAuth, EAS, `terraform apply` |
 
 Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git, secrets, apply**.
 

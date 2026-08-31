@@ -31,18 +31,29 @@ function currentBranch(cwd: string): string {
   return (branch.stdout || "").trim();
 }
 
-function viewPrUrl(cwd: string): string | undefined {
-  const view = gh(["pr", "view", "--json", "url"], cwd);
+export function isOpenPrState(state: string | undefined): boolean {
+  return (state || "").toUpperCase() === "OPEN";
+}
+
+export function parsePrView(raw: string): { url?: string; state?: string } | null {
+  try {
+    return JSON.parse(raw.trim()) as { url?: string; state?: string };
+  } catch {
+    return null;
+  }
+}
+
+function viewOpenPrUrl(cwd: string): string | undefined {
+  const view = gh(["pr", "view", "--json", "url,state"], cwd);
   if (view.status !== 0) {
     return undefined;
   }
-  try {
-    const parsed = JSON.parse((view.stdout || "").trim()) as { url?: string };
-    const url = (parsed.url || "").trim();
-    return url || undefined;
-  } catch {
+  const parsed = parsePrView(view.stdout || "");
+  if (!parsed || !isOpenPrState(parsed.state)) {
     return undefined;
   }
+  const url = (parsed.url || "").trim();
+  return url || undefined;
 }
 
 export function openOrReusePullRequest(
@@ -54,7 +65,7 @@ export function openOrReusePullRequest(
   if (name === "main" || name === "master") {
     return { ok: false, output: "refusing pull request on " + name };
   }
-  const existing = viewPrUrl(cwd);
+  const existing = viewOpenPrUrl(cwd);
   if (existing) {
     return { ok: true, output: existing };
   }
@@ -62,7 +73,7 @@ export function openOrReusePullRequest(
   if (created.status === 0) {
     return { ok: true, output: (created.stdout || "").trim() };
   }
-  const reused = viewPrUrl(cwd);
+  const reused = viewOpenPrUrl(cwd);
   if (reused) {
     return { ok: true, output: reused };
   }
@@ -71,5 +82,33 @@ export function openOrReusePullRequest(
     output:
       ((created.stdout || "") + (created.stderr || "")).trim() ||
       "gh pr create failed",
+  };
+}
+
+export function mergeOpenPullRequest(cwd: string): { ok: boolean; output: string } {
+  const name = currentBranch(cwd);
+  if (name === "main" || name === "master") {
+    return { ok: false, output: "refusing merge from " + name };
+  }
+  const open = viewOpenPrUrl(cwd);
+  if (!open) {
+    return { ok: false, output: "no open pull request to merge" };
+  }
+  const merged = gh(["pr", "merge", "--merge"], cwd);
+  if (merged.status === 0) {
+    return { ok: true, output: (merged.stdout || "").trim() || open };
+  }
+  const waiting = gh(["pr", "merge", "--auto", "--merge"], cwd);
+  if (waiting.status === 0) {
+    return {
+      ok: true,
+      output: ((waiting.stdout || "") + " auto-merge enabled").trim(),
+    };
+  }
+  return {
+    ok: false,
+    output:
+      ((merged.stdout || "") + (merged.stderr || "")).trim() ||
+      "gh pr merge failed",
   };
 }

@@ -80,7 +80,7 @@ On an empty repo, `yarn task` does not replace init. Run `yarn run init --remote
 - Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`)
 - `git config user.name` and `user.email` **on the product repo**. Without them, `yarn run init` and `yarn task` stop before commit.
 
-Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse the existing PR). Retry fetch/rebase/push if the remote changes between fetch and push. Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips both.
+Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse an **open** PR; a closed PR is ignored and a new one is opened). When the DAG finishes, merge that PR into `main` (`gh pr merge --merge`, or `--auto` if checks are still running). Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips push, PR, and merge.
 
 ## Layout
 
@@ -110,8 +110,8 @@ Already-written queue: `yarn task --dagfile=path/to/your-dag.json`.
 
 ## UI
 
-Init: COMPOSE, BOOTSTRAP, PLUGIN (if nested), CI, REMOTE, PUSH. Task: PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, CI (keeps the same workflow file), COMMIT NOW, ARCHIVE, PUSH, PR, SKIP, FAIL.
+Init: COMPOSE, BOOTSTRAP, PLUGIN (if nested), CI, REMOTE, PUSH. Task: PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, CI (keeps the same workflow file), COMMIT NOW, ARCHIVE, PUSH, PR, MERGE (into main when the DAG finishes), SKIP, FAIL.
 
 ## Forbidden (agent)
 
-`git push`, `--no-verify`, `terraform apply` / `destroy`, committing `.env` or keys. Only the orchestrator pushes (after each node, unless `--no-push`).
+`git push`, `--no-verify`, `terraform apply` / `destroy`, committing `.env` or keys. Only the orchestrator pushes and merges (after each node, unless `--no-push`).

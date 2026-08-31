@@ -13,6 +13,7 @@ export type Phase =
   | "ARCHIVE"
   | "PUSH"
   | "PR"
+  | "MERGE"
   | "SKIP"
   | "FAIL";
 

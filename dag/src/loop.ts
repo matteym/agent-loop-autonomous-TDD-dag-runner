@@ -35,7 +35,7 @@ import {
   repoRoot,
   resolveDagFile,
 } from "./paths.js";
-import { openOrReusePullRequest } from "./pr.js";
+import { mergeOpenPullRequest, openOrReusePullRequest } from "./pr.js";
 import { createAgentHandle } from "./providers/create.js";
 import type { AgentHandle } from "./providers/types.js";
 import { resolveProvider } from "./providers/select.js";
@@ -454,6 +454,16 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     }
   }
   endSummary(dag);
+  if (opts.push !== false && !publishFailed && nodesOk > 0) {
+    phase("MERGE", "main");
+    const merged = mergeOpenPullRequest(repoRoot);
+    if (!merged.ok) {
+      publishFailed = true;
+      log("merge failed: " + merged.output);
+    } else {
+      log("merged " + merged.output);
+    }
+  }
   if (publishFailed) {
     log("nodes finished; origin publish incomplete");
     return 2;

@@ -37,10 +37,19 @@ describe("planner limits", () => {
 
 describe("normalizePlannedDag", () => {
   it("hoists task-level optionalCwd onto tests and strips it from the task", () => {
-    const normalized = normalizePlannedDag(dagWith({ optionalCwd: true }), []);
-    expect(normalized.tasks[0].tests[0].optionalCwd).toBe(true);
-    expect("optionalCwd" in normalized.tasks[0]).toBe(false);
-    expect(validateDag(normalized, [])).toBeNull();
+    const root = mkdtempSync(join(tmpdir(), "dag-plan-"));
+    try {
+      const normalized = normalizePlannedDag(
+        dagWith({ optionalCwd: true }),
+        [],
+        root
+      );
+      expect(normalized.tasks[0].tests[0].optionalCwd).toBe(true);
+      expect("optionalCwd" in normalized.tasks[0]).toBe(false);
+      expect(validateDag(normalized, [], root)).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("sets optionalCwd when the planner omits it for a fillable new package", () => {
@@ -69,8 +78,13 @@ describe("validateDag", () => {
   });
 
   it("accepts optionalCwd on the tests entry", () => {
-    const dag = dagWith({}, [{ ...pyTests, optionalCwd: true }]);
-    expect(validateDag(dag, [])).toBeNull();
+    const root = mkdtempSync(join(tmpdir(), "dag-plan-"));
+    try {
+      const dag = dagWith({}, [{ ...pyTests, optionalCwd: true }]);
+      expect(validateDag(dag, [], root)).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
