@@ -100,7 +100,7 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   const extraIgnore = pluginDirName ? [pluginGitignoreLine(pluginDirName)] : [];
   writeBootstrap(repoRoot, extraIgnore);
   if (nestedPlugin) {
-    phase("PLUGIN", pluginDirName + " gitignored; .cursor copied to parent");
+    phase("PLUGIN", pluginDirName + " gitignored; engine .git parked; .cursor copied to parent");
     copyEngineCursor(engineRoot, repoRoot);
   }
   phase("CI", ".github/workflows/ci.yml");

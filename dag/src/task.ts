@@ -13,10 +13,13 @@ import {
 import { commitMessageValid } from "./commit.js";
 import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
 import { metadataDagPath, metadataDir, metadataTaskPath, pluginDirName, repoRoot } from "./paths.js";
+import { normalizePlannedDag } from "./plan-normalize.js";
 import { createAgentHandle } from "./providers/create.js";
 import { resolveProvider } from "./providers/select.js";
 import type { ProviderName } from "./cli.js";
-import type { Dag, TestSpec } from "./types.js";
+import type { Dag } from "./types.js";
+
+export { normalizePlannedDag } from "./plan-normalize.js";
 
 export const maxPlanTasks = 10;
 
@@ -125,7 +128,7 @@ function extractJson(text: string): unknown {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
-function validateDag(dag: Dag, packages: Pkg[]): string | null {
+export function validateDag(dag: Dag, packages: Pkg[]): string | null {
   if (!dag.title || !dag.model || dag.cwd !== ".." || !Array.isArray(dag.tasks)) {
     return "dag must have title, model, cwd '..', and tasks[]";
   }
@@ -216,7 +219,7 @@ function defaultModel(): string {
   }
 }
 
-function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): string {
+export function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): string {
   const inv = packages
     .map((pkg) => {
       const test = pkg.test
@@ -231,7 +234,7 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "Schema:",
     '{"title":"string","model":"' +
       model +
-      '","cwd":"..","tasks":[{"id":"kebab-id","prompt":"string","commit":"feat(scope): subject","tests":[{"cwd":"rel/path","cmd":"yarn","args":["test"]}],"allowEmptyCommit":false}]}',
+      '","cwd":"..","tasks":[{"id":"kebab-id","prompt":"string","commit":"feat(scope): subject","tests":[{"cwd":"rel/path","cmd":"yarn","args":["test"],"optionalCwd":true}],"allowEmptyCommit":false}]}',
     "Human intent: " + intent,
     "Use model " +
       model +
@@ -240,7 +243,7 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
       maxPlanTasks +
       ", dependency order. Several tasks MAY share the same package when they are sequential features. Do not cram a whole module into one node.",
     "id kebab from intent. commit must match feat|fix|refactor|perf|test|docs|style|chore|build|ci(scope)?: lowercase subject, no period. Copy style from git log.",
-    "tests.cwd must be one inventory path. tests.cmd/args must equal that package's listed test command.",
+    "Inventoried tests.cwd must be one inventory path and tests.cmd/args must equal that package's listed test command. New packages put optionalCwd true on the tests[] entry, never on the task object.",
     "Language → tests (never mix):",
     "- TypeScript/JavaScript (Express, Nest, Fastify): package.json + yarn test. Node must create package.json with a test script.",
     "- Python (FastAPI, Django, Flask): pyproject.toml + tests cmd uv args [run, python, -m, pytest, -q]. Never yarn test on a Python node.",
@@ -249,7 +252,7 @@ function buildPlannerPrompt(intent: string, packages: Pkg[], model: string): str
     "Infer language from the human intent. FastAPI = Python. gin = Go. Express = TypeScript. Polyglot intent = one language per task, correct runner each time.",
     "If a package has no-test-script you may not point tests at it unless id is scaffold with tests [] and allowEmptyCommit true.",
     "Init only created an empty src folder. Put application code under src/ (or src/<service> if the intent is multiple services). Do not create src/backend or src/frontend unless the intent asks for that split. Architecture is decided by THIS intent, not init.",
-    "If a package is missing from inventory (src, src/api), emit a task with that relative cwd, optionalCwd true, and the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
+    "If a package is missing from inventory (src, src/api), put optionalCwd true on that tests[] entry (never on the task object), with the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
       (pluginDirName ? ", " + pluginDirName : "") +
       ". The node must create the package marker AND tests. Inventoried packages must use their listed test command and must not set optionalCwd.",
     "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy composeBlock/envBlock from dag/src/init/compose.ts. The orchestrator syncs .env and runs docker compose up --build -d.",
@@ -289,13 +292,17 @@ async function plan(
   }
   const blob = (result.text || "").trim() || result.result || "";
   const parsed = extractJson(blob) as Dag;
-  const err = validateDag(parsed, packages);
+  const normalized = normalizePlannedDag(
+    parsed,
+    packages.map((pkg) => pkg.rel)
+  );
+  const err = validateDag(normalized, packages);
   if (err) {
     throw new Error(err);
   }
-  parsed.model = model;
-  parsed.cwd = "..";
-  return parsed;
+  normalized.model = model;
+  normalized.cwd = "..";
+  return normalized;
 }
 
 export async function runTask(opts: {

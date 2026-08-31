@@ -78,9 +78,9 @@ On an empty repo, `yarn task` does not replace init. Run `yarn run init --remote
 - `gh` authenticated (default push + PR; skip with `--no-push`)
 - Branch ≠ `main` / `master` (otherwise EXIT 1)
 - Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`)
-- `git config user.name` and `user.email` **in this repo**. Without them, `yarn run init` and `yarn task` stop before commit.
+- `git config user.name` and `user.email` **on the product repo**. Without them, `yarn run init` and `yarn task` stop before commit.
 
-Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: `git push -u origin HEAD` then `gh pr create` (or reuse the existing PR). Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips both.
+Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse the existing PR). Retry fetch/rebase/push if the remote changes between fetch and push. Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips both.
 
 ## Layout
 
@@ -100,7 +100,7 @@ One logs directory: `logs/` (not `log/`).
 
 ## Copy into another repo
 
-Clone this repo **inside** the product git clone. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`. Init targets the parent work tree and gitignores the plugin directory.
+Clone this repo **inside** the product git clone. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`. Init targets the parent work tree and gitignores the plugin directory. The first `yarn run init` / `yarn task` **parks** the nested engine `.git` as `.git.engine` so `git status` / `git log` from `dag/` use the **product** repo. The orchestrator already runs git with `cwd` = product root. To work on the engine itself, use a standalone clone (not the nested copy), or `git --git-dir=.git.engine --work-tree=.` from the plugin root.
 
 Alternatively copy only `dag/` and `.cursor/` to the product root (engine = product). Same init command.
 

@@ -1,9 +1,15 @@
 import { parseArgv } from "./src/cli.js";
 import { runInit } from "./src/init/run.js";
 import { log } from "./src/init/log.js";
+import { parkNestedEngineGit } from "./src/layout.js";
+import { engineRoot, nestedPlugin, repoRoot } from "./src/paths.js";
 import { runTask } from "./src/task.js";
 
 async function main() {
+  const parked = parkNestedEngineGit(engineRoot, nestedPlugin);
+  if (parked) {
+    log("nested engine git parked; git in dag/ uses " + repoRoot);
+  }
   const parsed = parseArgv(process.argv.slice(2));
   if (!parsed.ok) {
     process.stderr.write(parsed.error + "\n");

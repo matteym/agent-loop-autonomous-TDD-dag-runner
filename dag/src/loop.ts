@@ -20,7 +20,13 @@ import {
   revertTrackedChanges,
   runGit,
 } from "./git-run.js";
-import { missingGitIdentityHint, pushHead, requireGitIdentity } from "./init/git.js";
+import {
+  aheadBehind,
+  missingGitIdentityHint,
+  pushHead,
+  pushHint,
+  requireGitIdentity,
+} from "./init/git.js";
 import { composeReload } from "./init/up.js";
 import {
   failuresLogPath,
@@ -41,6 +47,7 @@ const maxFixRounds = 5;
 const maxRedAttempts = 2;
 
 let nodesOk = 0;
+let publishFailed = false;
 let activeDagPath = metadataDagPath;
 const runStartedAt = Date.now();
 
@@ -218,6 +225,44 @@ function preflight() {
   }
 }
 
+function warnIfOriginDiverged() {
+  runGit(["fetch", "origin"]);
+  const ab = aheadBehind(repoRoot);
+  if (!ab || ab.behind === 0) {
+    return;
+  }
+  log(
+    "origin is ahead or diverged (ahead " +
+      ab.ahead +
+      " behind " +
+      ab.behind +
+      "). push will fetch, rebase local commits onto origin, then push. never --force."
+  );
+}
+
+function publishNode(title: string): void {
+  phase("PUSH", "origin HEAD");
+  const pushed = pushHead(repoRoot);
+  if (!pushed.ok) {
+    publishFailed = true;
+    log("push failed: " + pushed.reason);
+    log(pushHint(pushed.reason));
+    return;
+  }
+  phase("PR", title);
+  const pr = openOrReusePullRequest(
+    repoRoot,
+    title,
+    "Automated DAG run: " + title
+  );
+  if (!pr.ok) {
+    publishFailed = true;
+    log("pull request failed: " + pr.output);
+  } else {
+    log("pull request " + pr.output);
+  }
+}
+
 async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean> {
   if (!commitMessageValid(task.commit)) {
     log("commit message rejected: " + task.commit);
@@ -299,6 +344,9 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   }
   log("provider=" + selected.provider);
   preflight();
+  if (opts.push !== false) {
+    warnIfOriginDiverged();
+  }
   const dag = loadDag(activeDagPath);
   const state = loadState();
   mkdirSync(logsDir, { recursive: true });
@@ -402,27 +450,13 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     nodesOk += 1;
     log("finished " + task.id);
     if (opts.push !== false) {
-      phase("PUSH", "origin HEAD");
-      const pushed = pushHead(repoRoot);
-      if (!pushed.ok) {
-        log("push failed: " + pushed.reason);
-        endSummary(dag);
-        return 2;
-      }
-      phase("PR", dag.title);
-      const pr = openOrReusePullRequest(
-        repoRoot,
-        dag.title,
-        "Automated DAG run: " + dag.title
-      );
-      if (!pr.ok) {
-        log("pull request failed: " + pr.output);
-        endSummary(dag);
-        return 2;
-      }
-      log("pull request " + pr.output);
+      publishNode(dag.title);
     }
   }
   endSummary(dag);
+  if (publishFailed) {
+    log("nodes finished; origin publish incomplete");
+    return 2;
+  }
   return 0;
 }

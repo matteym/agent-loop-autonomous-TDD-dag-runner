@@ -2,6 +2,7 @@
 node_modules/
 dist/
 .venv/
+.git.engine/
 dag/node_modules/
 dag/metadata/state.json
 dag/metadata/task.json

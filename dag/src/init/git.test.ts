@@ -1,13 +1,17 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
+  aheadBehind,
   bootstrapCommitSubject,
   commitBootstrap,
+  isRejectedNonFastForward,
   parseGithubRemote,
   pushHead,
+  pushHint,
+  rebaseConflictPolicy,
   setOriginRemote,
 } from "./git.js";
 
@@ -41,6 +45,166 @@ describe("setOriginRemote", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+function gitIdentity(cwd: string) {
+  spawnSync("git", ["config", "user.name", "testrunner"], { cwd });
+  spawnSync("git", ["config", "user.email", "testrunner@example.com"], { cwd });
+  spawnSync("git", ["config", "commit.gpgsign", "false"], { cwd });
+  spawnSync("git", ["config", "core.autocrlf", "false"], { cwd });
+}
+
+function subjects(cwd: string): string[] {
+  const log = spawnSync("git", ["log", "--format=%s"], {
+    cwd,
+    encoding: "utf8",
+  });
+  return (log.stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+describe("push rejection", () => {
+  it("detects non-fast-forward and explains rebase, never force-push", () => {
+    const reason =
+      " ! [rejected]        HEAD -> agent/init (non-fast-forward)\n" +
+      "error: failed to push some refs";
+    expect(isRejectedNonFastForward(reason)).toBe(true);
+    expect(pushHint(reason)).toContain("rebase");
+    expect(pushHint(reason)).toContain(rebaseConflictPolicy);
+    expect(pushHint(reason)).not.toMatch(/(?:^|[^-])--force(?:$|[^-])/);
+    expect(isRejectedNonFastForward("gh: NotFound")).toBe(false);
+    expect(pushHint("gh: NotFound")).toBe("gh: NotFound");
+  });
+
+  it(
+    "rebases local commits onto origin then pushes (A-B-C + D => A-B-C-D')",
+    () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-diverge-"));
+    const bare = join(dir, "origin.git");
+    const local = join(dir, "local");
+    const other = join(dir, "other");
+    try {
+      mkdirSync(local);
+      expect(spawnSync("git", ["init"], { cwd: local }).status).toBe(0);
+      gitIdentity(local);
+      spawnSync("git", ["checkout", "-B", "agent/init"], { cwd: local });
+      writeFileSync(join(local, "base.txt"), "base\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: local }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "base"], { cwd: local }).status
+      ).toBe(0);
+      expect(spawnSync("git", ["init", "--bare", bare], { cwd: dir }).status).toBe(
+        0
+      );
+      expect(
+        spawnSync("git", ["remote", "add", "origin", bare], { cwd: local }).status
+      ).toBe(0);
+      expect(
+        spawnSync("git", ["push", "-u", "origin", "HEAD"], { cwd: local, encoding: "utf8" })
+          .status
+      ).toBe(0);
+      expect(
+        spawnSync("git", ["clone", "-b", "agent/init", bare, other], {
+          cwd: dir,
+          encoding: "utf8",
+        }).status
+      ).toBe(0);
+      gitIdentity(other);
+      writeFileSync(join(other, "remote.txt"), "remote leftover\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: other }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "remote leftover"], { cwd: other })
+          .status
+      ).toBe(0);
+      const otherPush = spawnSync("git", ["push", "origin", "HEAD"], {
+        cwd: other,
+        encoding: "utf8",
+      });
+      expect(otherPush.status, otherPush.stderr + otherPush.stdout).toBe(0);
+      writeFileSync(join(local, "local.txt"), "new local\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: local }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "new local"], { cwd: local }).status
+      ).toBe(0);
+      expect(spawnSync("git", ["fetch", "origin"], { cwd: local }).status).toBe(0);
+      expect(aheadBehind(local)).toEqual({ ahead: 1, behind: 1 });
+      const pushed = pushHead(local);
+      expect(pushed.ok).toBe(true);
+      const log = subjects(local);
+      expect(log[0]).toBe("new local");
+      expect(log).toContain("remote leftover");
+      expect(log.indexOf("new local")).toBeLessThan(log.indexOf("remote leftover"));
+      expect(existsSync(join(local, "remote.txt"))).toBe(true);
+      expect(existsSync(join(local, "local.txt"))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+  20000
+  );
+
+  it("keeps remote history and replays the agent file on conflict", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-conflict-"));
+    const bare = join(dir, "origin.git");
+    const local = join(dir, "local");
+    const other = join(dir, "other");
+    try {
+      mkdirSync(local);
+      expect(spawnSync("git", ["init"], { cwd: local }).status).toBe(0);
+      gitIdentity(local);
+      spawnSync("git", ["checkout", "-B", "agent/init"], { cwd: local });
+      writeFileSync(join(local, "shared.txt"), "base\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: local }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "base"], { cwd: local }).status
+      ).toBe(0);
+      expect(spawnSync("git", ["init", "--bare", bare], { cwd: dir }).status).toBe(
+        0
+      );
+      expect(
+        spawnSync("git", ["remote", "add", "origin", bare], { cwd: local }).status
+      ).toBe(0);
+      expect(
+        spawnSync("git", ["push", "-u", "origin", "HEAD"], { cwd: local, encoding: "utf8" })
+          .status
+      ).toBe(0);
+      expect(
+        spawnSync("git", ["clone", "-b", "agent/init", bare, other], {
+          cwd: dir,
+          encoding: "utf8",
+        }).status
+      ).toBe(0);
+      gitIdentity(other);
+      writeFileSync(join(other, "shared.txt"), "remote\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: other }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "remote leftover"], { cwd: other })
+          .status
+      ).toBe(0);
+      const otherPush = spawnSync("git", ["push", "origin", "HEAD"], {
+        cwd: other,
+        encoding: "utf8",
+      });
+      expect(otherPush.status, otherPush.stderr + otherPush.stdout).toBe(0);
+      writeFileSync(join(local, "shared.txt"), "agent\n");
+      expect(spawnSync("git", ["add", "-A"], { cwd: local }).status).toBe(0);
+      expect(
+        spawnSync("git", ["commit", "-m", "agent work"], { cwd: local }).status
+      ).toBe(0);
+      const pushed = pushHead(local);
+      expect(pushed.ok).toBe(true);
+      expect(readFileSync(join(local, "shared.txt"), "utf8").replace(/\r\n/g, "\n")).toBe(
+        "agent\n"
+      );
+      const log = subjects(local);
+      expect(log).toContain("remote leftover");
+      expect(log).toContain("agent work");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20000);
 });
 
 describe("pushHead", () => {
