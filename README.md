@@ -86,6 +86,16 @@ yarn test
 yarn tsc --noEmit
 ```
 
+⚠️⚠️⚠️## Windows Users: Smart App Control Note⚠️⚠️⚠️
+
+If Windows (via **Smart App Control**) blocks the runner or prevents task execution (`yarn task` or under-the-hood test calls), it is because Windows treats unsigned local development binaries (like Node, Yarn, or Python/uv toolchains) with strict security isolation.
+
+To ensure smooth test executions and prevent Windows from blocking the runner:
+
+1. Open **Windows Settings** > **Privacy & security** > **Windows Security** > **App & browser control**.
+2. Click on **Smart App Control settings**.
+3. If it is set to **On**, switch it to **Off** (note: once turned off, Windows typically requires a system reset to re-enable, but it instantly stops blocking valid local development tools and CLI test loops).
+
 Operator detail: [`dag/README.md`](dag/README.md). Protocol: [`.cursor/skills/agent-loop/SKILL.md`](.cursor/skills/agent-loop/SKILL.md).
 
 ---
