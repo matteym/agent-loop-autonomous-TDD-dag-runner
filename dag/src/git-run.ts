@@ -27,20 +27,10 @@ export function isControlledDirty(file: string, pluginName: string | null = plug
       return true;
     }
   }
-  if (
-    n === "dag/metadata/state.json" ||
-    n === "dag/metadata/task.json" ||
-    n === "dag/metadata/agent-id"
-  ) {
+  if (n === "dag" || n.startsWith("dag/")) {
     return true;
   }
-  if (n.startsWith("dag/metadata/") && n.endsWith(".done.json")) {
-    return true;
-  }
-  if (n.startsWith("dag/history/")) {
-    return true;
-  }
-  return n.startsWith("dag/logs/") && n.endsWith(".log");
+  return false;
 }
 
 export function isBlockedCommitPath(file: string): boolean {
@@ -113,6 +103,11 @@ export function gitHead(): string {
 
 export function lastCommitSubject(): string {
   return (runGit(["log", "-1", "--format=%s"]).stdout || "").trim();
+}
+
+export function recentGitLog(limit = 20): string {
+  const result = runGit(["log", "-" + String(limit), "--oneline"]);
+  return (result.stdout || "").trim() || "(no commits)";
 }
 
 export function revertTrackedChanges() {

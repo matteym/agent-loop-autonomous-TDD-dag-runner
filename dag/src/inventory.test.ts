@@ -51,4 +51,14 @@ describe("mismatchLangTests", () => {
   it("does not force a language on a vague intent", () => {
     expect(mismatchLangTests("add a button", { cmd: "yarn", args: ["test"] })).toBeNull();
   });
+
+  it("keeps yarn test for an Expo Client node that mentions FastAPI HTTP routes", () => {
+    expect(
+      mismatchLangTests(
+        "In Client/, implement matchmaking client against FastAPI routes. Do not modify Python server.",
+        { cmd: "yarn", args: ["test"] },
+        "Client"
+      )
+    ).toBeNull();
+  });
 });

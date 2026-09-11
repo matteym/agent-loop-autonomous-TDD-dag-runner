@@ -18,16 +18,17 @@ Operator manual: `dag/README.md`. Default: clone this engine inside a product gi
 | Actor | Owns | Never |
 |---|---|---|
 | Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/task.json` / `*.done.json` |
-| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node fetch+rebase onto origin then `git push` + `gh pr create` (reuse only an **open** PR) unless `--no-push`; when the DAG finishes, `gh pr merge` into `main`. Re-read `.env` / `.env.example` at loop start and before every node (alias + `*_HOST` URLs). Never `--force`; never drop remote commits. | cloud Agent VM, live OAuth, EAS, `terraform apply` |
+| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node `git push` + `gh pr create` (reuse if the PR exists) unless `--no-push` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
 
 Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git, secrets, apply**.
 
 ## SECTION 1 — Source of truth
 
 1. Load this skill and `.cursor/rules/agent-loop.mdc`. Other project skills if they match the ticket.
-2. Read the current node in the DAG JSON (`--dagfile` or `dag/metadata/task.json`). The orchestrator appends a deterministic repo briefing (inventoried packages, this node's tests, exact commit subject, forbidden paths). Do not treat the briefing as extra scope.
-3. Copy APIs from existing code in this repo. Do not invent syntax.
-4. Do not use MCP to mutate cloud state.
+2. Read the current node in the DAG JSON (`--dagfile` or `dag/metadata/task.json`). The orchestrator appends a deterministic repo briefing (inventoried packages, this node's tests, exact commit subject, forbidden paths, `.cursor/product-context.md`, recent product git log). Do not treat the briefing as extra scope.
+3. If `.cursor/product-context.md` exists on the **product** repo (parent when this engine is nested), treat it as architecture and shipped history. Do not re-implement those features unless the ticket says so.
+4. Copy APIs from existing code in this repo. Do not invent syntax. When nested, write product code on the parent git repo, never inside this plugin folder.
+5. Do not use MCP to mutate cloud state.
 
 ## SECTION 2 — Readiness
 
@@ -49,7 +50,7 @@ No tests: one send, then GUARD + COMMIT NOW (`allowEmptyCommit` if needed). With
 3. **GUARD + TEST** — `node .cursor/hooks/guard-anti-patterns.mjs` then DAG tests. Up to 5 fix sends. Do not commit.
 4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Init already wrote `.github/workflows/ci.yml`; after node tests pass the orchestrator keeps that file current (do not invent a second workflow). Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored).
 
-CLI (from `dag/`): `yarn run init --remote=https://github.com/OWNER/REPO.git` (or `--repo=`), `yarn task "intent"`, `yarn test`. Nested plugin: init writes one level up (`../`) on the parent git repo and gitignores this engine folder. The CLI parks the nested engine `.git` as `.git.engine` so git from `dag/` is the product. Task flags only: `--dagfile=<path>`, `--push=false` / `--no-push`, `--provider=cursor|claude`. No `DAG_*` environment variables.
+CLI (from `dag/`): `yarn run init --remote=https://github.com/OWNER/REPO.git` (or `--repo=`), `yarn task "intent"`, `yarn test`. Nested plugin: init writes one level up (`../`) on the parent git repo and gitignores this engine folder. Task flags only: `--dagfile=<path>`, `--push=false` / `--no-push`, `--provider=cursor|claude`. No `DAG_*` environment variables.
 
 ## SECTION 4 — Failure
 

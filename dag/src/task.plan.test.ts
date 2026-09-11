@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizePlannedDag } from "./plan-normalize.js";
 import { buildPlannerPrompt, maxPlanTasks, validateDag } from "./task.js";
-import type { Dag } from "./types.js";
+import type { Dag, TestSpec } from "./types.js";
 
-const pyTests = {
+const pyTests: TestSpec = {
   cwd: "src/backend",
   cmd: "uv",
   args: ["run", "python", "-m", "pytest", "-q"],

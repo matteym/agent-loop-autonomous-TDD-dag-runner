@@ -8,6 +8,8 @@ describe("isControlledDirty", () => {
     expect(isControlledDirty("dag/metadata/notes.done.json")).toBe(true);
     expect(isControlledDirty("dag/history/nodes.jsonl")).toBe(true);
     expect(isControlledDirty("dag/logs/run-20260101-000000.log")).toBe(true);
+    expect(isControlledDirty("dag/README.md")).toBe(true);
+    expect(isControlledDirty("dag/src/task.ts")).toBe(true);
   });
 
   it("does not ignore product files", () => {

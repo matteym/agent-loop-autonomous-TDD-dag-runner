@@ -168,10 +168,27 @@ function walkTestable(root: string, dir: string, depth: number, out: TestablePkg
   }
 }
 
+function isTsClientCwd(cwd: string): boolean {
+  const n = cwd.replace(/\\/g, "/").toLowerCase();
+  if (n === "client" || n.startsWith("client/")) {
+    return true;
+  }
+  return n === "apps/mobile" || n.startsWith("apps/mobile/");
+}
+
+function isTsClientPrompt(text: string): boolean {
+  const t = text.toLowerCase();
+  return /\b(expo|nativewind|react-native|react native)\b/.test(t);
+}
+
 export function mismatchLangTests(
   text: string,
-  spec: { cmd: string; args: string[] }
+  spec: { cmd: string; args: string[] },
+  cwd?: string
 ): string | null {
+  if (spec.cmd === "yarn" && (isTsClientCwd(cwd || "") || isTsClientPrompt(text))) {
+    return null;
+  }
   const lang = inferLangFromText(text);
   if (!lang) {
     return null;

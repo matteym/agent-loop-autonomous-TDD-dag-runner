@@ -1,8 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
-import { blockedCommitPaths } from "./git-run.js";
+import { blockedCommitPaths, recentGitLog } from "./git-run.js";
 import { inventoryMarkers } from "./inventory.js";
-import { repoRoot, isPluginWalkDir } from "./paths.js";
+import { engineRoot, repoRoot, isPluginWalkDir } from "./paths.js";
+import { productContextBlock } from "./product-context.js";
 import type { Task, TestSpec } from "./types.js";
 
 export const protocolPreamble =
@@ -105,10 +106,13 @@ export function buildRepoBriefing(task: Task, commitNow: boolean): string {
   }
   return [
     "Repo briefing (deterministic, not extra scope). Ticket text above wins.",
+    ...productContextBlock(repoRoot, engineRoot),
     "Exact git commit subject (COMMIT NOW only, copy verbatim):",
     task.commit,
     "Repo packages:",
     ...listRepoPackages().map((line) => "- " + line),
+    "Recent git log (product repo):",
+    recentGitLog(),
     "This node tests:",
     ...formatNodeTests(task.tests).map((line) => "- " + line),
     "Forbidden paths / actions:",

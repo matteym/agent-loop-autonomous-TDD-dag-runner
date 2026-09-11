@@ -1,6 +1,6 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { recentGitLog } from "./git-run.js";
 import { hasCompose, isEmptyTarget } from "./init/detect.js";
 import { missingRemoteHint } from "./init/run.js";
 import { runLoop } from "./loop.js";
@@ -12,7 +12,15 @@ import {
 } from "./inventory.js";
 import { commitMessageValid } from "./commit.js";
 import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
-import { metadataDagPath, metadataDir, metadataTaskPath, pluginDirName, repoRoot } from "./paths.js";
+import {
+  engineRoot,
+  metadataDagPath,
+  metadataDir,
+  metadataTaskPath,
+  pluginDirName,
+  repoRoot,
+} from "./paths.js";
+import { productContextBlock } from "./product-context.js";
 import { normalizePlannedDag } from "./plan-normalize.js";
 import { createAgentHandle } from "./providers/create.js";
 import { resolveProvider } from "./providers/select.js";
@@ -109,14 +117,6 @@ function listPackages(): Pkg[] {
   });
 }
 
-function gitLog(): string {
-  const result = spawnSync("git", ["log", "-20", "--oneline"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  return (result.stdout || "").trim() || "(no commits)";
-}
-
 function extractJson(text: string): unknown {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = fence ? fence[1] : text;
@@ -202,7 +202,11 @@ export function validateDag(
       if (!isAllowedNewTestSpec(spec.cmd, spec.args)) {
         return task.id + " new cwd tests must be yarn test (or uv pytest / go test / cargo test)";
       }
-      const langErr = mismatchLangTests(task.prompt + " " + task.id + " " + spec.cwd, spec);
+      const langErr = mismatchLangTests(
+        task.prompt + " " + task.id + " " + spec.cwd,
+        spec,
+        spec.cwd
+      );
       if (langErr) {
         return task.id + " " + langErr;
       }
@@ -253,7 +257,7 @@ export function buildPlannerPrompt(intent: string, packages: Pkg[], model: strin
     "- Python (FastAPI, Django, Flask): pyproject.toml + tests cmd uv args [run, python, -m, pytest, -q]. Never yarn test on a Python node.",
     "- Go (gin, fiber, chi): go.mod + tests cmd go args [test, ./...]. Never yarn test on a Go node.",
     "- Rust (axum, actix): Cargo.toml + tests cmd cargo args [test]. Never yarn test on a Rust node.",
-    "Infer language from the human intent. FastAPI = Python. gin = Go. Express = TypeScript. Polyglot intent = one language per task, correct runner each time.",
+    "Infer language from THIS node's package, not from backends it calls. FastAPI/Django node = pytest. gin node = go test. Express/Expo/React Native/Client/ = yarn test. A Client/ Expo node that mentions FastAPI or Server/src/matchmaking still uses yarn test.",
     "If a package has no-test-script you may not point tests at it unless id is scaffold with tests [] and allowEmptyCommit true.",
     "Init only created an empty src folder. Put application code under src/ (or src/<service> if the intent is multiple services). Do not create src/backend or src/frontend unless the intent asks for that split. Architecture is decided by THIS intent, not init.",
     "If a package is missing from inventory (src, src/api), put optionalCwd true on that tests[] entry (never on the task object), with the test command for THAT language. Empty layout folders (only .gitkeep) may be filled. Forbidden cwd: dag, .cursor, .git, node_modules, ., .., absolute paths" +
@@ -265,8 +269,9 @@ export function buildPlannerPrompt(intent: string, packages: Pkg[], model: strin
     "Forbidden: .env in git, git push, --no-verify, terraform apply, fallback-secret, hardcoded localhost in app source, Playwright, Detox.",
     "Inventory:",
     inv,
-    "Recent git log:",
-    gitLog(),
+    ...productContextBlock(repoRoot, engineRoot),
+    "Recent git log (product repo):",
+    recentGitLog(),
   ].join("\n");
 }
 
