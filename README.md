@@ -54,7 +54,7 @@ yarn task "Build a notes API with Express and yarn test"
 ```
 ( ⚠️ Important Requirement:
 
-To run Yarn tasks, your Git working tree must be clean (i.e., git diff and git status must return no changes). )
+To run yarn task "...", your Git working tree must be clean (i.e., git diff and git status must return no changes). )
 
 Stay local: `yarn task --no-push "…"`.
 
