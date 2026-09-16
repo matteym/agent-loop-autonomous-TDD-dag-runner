@@ -11,7 +11,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -25,7 +27,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -39,21 +43,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
-          "optionalCwd": true
-        }
-      ],
-      "allowEmptyCommit": false
-    },
-    {
-      "id": "resume-from-checkpoint",
-      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Resume in dag/src/knowledge/state: given a run_id, load latest checkpoint, list nodes already NODE_COMPLETED, return next_action without redoing finished work. If workspace commit in checkpoint does not match current HEAD, resume must fail closed (do not continue blindly). Tests: completed node skipped; mismatch HEAD refused. No dag/src/loop.ts wiring yet. Use env for URLs, never hardcode, never commit .env.",
-      "commit": "feat(state): resume runs from checkpoints",
-      "tests": [
-        {
-          "cwd": "dag/src/knowledge",
-          "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -67,7 +59,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -81,7 +75,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -95,7 +91,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -109,7 +107,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -123,7 +123,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -137,7 +139,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -151,7 +155,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -165,7 +171,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -179,7 +187,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -193,7 +203,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -207,7 +219,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -221,7 +235,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -235,7 +251,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -249,7 +267,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -263,7 +283,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
@@ -277,7 +299,9 @@
         {
           "cwd": "dag/src/knowledge",
           "cmd": "yarn",
-          "args": ["test"],
+          "args": [
+            "test"
+          ],
           "optionalCwd": true
         }
       ],
