@@ -7,6 +7,7 @@ import type {
   MemoryStoreOptions,
   NewMemoryEntry,
 } from "./types.js";
+import { assertEvidenceForAdd } from "./validate.js";
 
 function loadLatestById(logPath: string): Map<string, MemoryEntry> {
   const map = new Map<string, MemoryEntry>();
@@ -22,6 +23,35 @@ function loadLatestById(logPath: string): Map<string, MemoryEntry> {
     map.set(entry.id, entry);
   }
   return map;
+}
+
+function isHiddenFromSearch(entry: MemoryEntry): boolean {
+  if (entry.invalidated) {
+    return true;
+  }
+  return entry.status === "invalidated";
+}
+
+function buildEntry(entry: NewMemoryEntry): MemoryEntry {
+  assertEvidenceForAdd(entry);
+  const now = new Date().toISOString();
+  const typed = entry.type !== undefined;
+  return {
+    id: entry.id ?? randomUUID(),
+    title: entry.title,
+    content: entry.content,
+    ...(entry.type !== undefined ? { type: entry.type } : {}),
+    ...(entry.scope !== undefined ? { scope: entry.scope } : {}),
+    ...(entry.evidence !== undefined ? { evidence: entry.evidence } : {}),
+    ...(entry.confidence !== undefined ? { confidence: entry.confidence } : {}),
+    ...(entry.created_at !== undefined
+      ? { created_at: entry.created_at }
+      : typed
+        ? { created_at: now }
+        : {}),
+    ...(entry.last_verified_at !== undefined ? { last_verified_at: entry.last_verified_at } : {}),
+    ...(typed ? { status: entry.status ?? "candidate" } : {}),
+  };
 }
 
 export class MemoryStore {
@@ -50,12 +80,7 @@ export class MemoryStore {
   }
 
   add(entry: NewMemoryEntry): MemoryEntry {
-    const full: MemoryEntry = {
-      id: entry.id ?? randomUUID(),
-      title: entry.title,
-      content: entry.content,
-    };
-    return this.persist(full);
+    return this.persist(buildEntry(entry));
   }
 
   get(id: string): MemoryEntry | undefined {
@@ -69,7 +94,7 @@ export class MemoryStore {
     }
     const hits: MemoryEntry[] = [];
     for (const entry of this.readAllLatest().values()) {
-      if (entry.invalidated) {
+      if (isHiddenFromSearch(entry)) {
         continue;
       }
       const haystack = `${entry.title}\n${entry.content}`.toLowerCase();
@@ -89,6 +114,13 @@ export class MemoryStore {
       ...existing,
       ...(patch.title !== undefined ? { title: patch.title } : {}),
       ...(patch.content !== undefined ? { content: patch.content } : {}),
+      ...(patch.scope !== undefined ? { scope: patch.scope } : {}),
+      ...(patch.evidence !== undefined ? { evidence: patch.evidence } : {}),
+      ...(patch.confidence !== undefined ? { confidence: patch.confidence } : {}),
+      ...(patch.last_verified_at !== undefined
+        ? { last_verified_at: patch.last_verified_at }
+        : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
     };
     return this.persist(updated);
   }
@@ -101,6 +133,7 @@ export class MemoryStore {
     const invalidated: MemoryEntry = {
       ...existing,
       invalidated: true,
+      status: "invalidated",
       invalidated_at: new Date().toISOString(),
       ...(reason !== undefined ? { invalidate_reason: reason } : {}),
     };
