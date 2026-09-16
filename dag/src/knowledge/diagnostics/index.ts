@@ -25,3 +25,22 @@ export type {
   RepairAttemptRow,
   StrategyStats,
 } from "./repeat-strategy-types.js";
+export { LOCAL_BENCHMARK_FIXTURES } from "./benchmark-fixtures.js";
+export { defaultBenchmarkQuestions, runRetrievalBenchmark } from "./benchmark-retrieval.js";
+export { appendTraceRecord, readTraceRecords } from "./trace-record.js";
+export {
+  promoteVerifiedRunMemoryToProject,
+  resolveProjectMemoryRootFromBase,
+  resolveRunMemoryRoot,
+  writeRunOnlyNote,
+} from "./run-memory-split.js";
+export type {
+  AppendTraceInput,
+  BenchmarkComparison,
+  BenchmarkQuestion,
+  BenchmarkScore,
+  PromoteVerifiedMemoryInput,
+  PromoteVerifiedMemoryResult,
+  RunBenchmarkInput,
+  TraceRecord,
+} from "./benchmark-trace-types.js";
