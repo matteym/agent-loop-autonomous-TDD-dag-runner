@@ -1,15 +1,20 @@
 import { Agent } from "@cursor/sdk";
+import { toCursorMcpServers, type ProjectMcp } from "../mcp.js";
 import type { AgentHandle, AgentRun } from "./types.js";
 
 export async function createCursorAgent(opts: {
   apiKey: string;
   model: string;
   cwd: string;
+  mcp?: ProjectMcp;
 }): Promise<AgentHandle> {
+  const mcpServers =
+    opts.mcp && opts.mcp.names.length ? toCursorMcpServers(opts.mcp.servers) : undefined;
   const agent = await Agent.create({
     apiKey: opts.apiKey,
     model: { id: opts.model },
     local: { cwd: opts.cwd, settingSources: ["project"] },
+    ...(mcpServers ? { mcpServers } : {}),
   });
   return {
     id: agent.agentId,

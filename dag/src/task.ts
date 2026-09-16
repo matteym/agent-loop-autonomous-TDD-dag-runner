@@ -12,6 +12,7 @@ import {
   testsMatch,
 } from "./inventory.js";
 import { commitMessageValid } from "./commit.js";
+import { loadProjectMcp, mcpBriefingLines } from "./mcp.js";
 import { isAllowedNewTestSpec, isFillableCwd, normalizeRelCwd } from "./new-cwd.js";
 import {
   engineRoot,
@@ -271,7 +272,8 @@ export function buildPlannerPrompt(intent: string, packages: Pkg[], model: strin
     "If the intent needs a datastore, the node must add the image to docker-compose.yml and keys to .env.example (never edit or commit .env). Copy composeBlock/envBlock from dag/src/init/compose.ts. The orchestrator syncs .env and runs docker compose up --build -d.",
     "Each prompt = the human intent scoped to that package only. Append: only this package. Use env for DB/API URLs, never hardcode, never commit .env.",
     "Do not write .github/workflows. Init already committed .github/workflows/ci.yml. The orchestrator keeps that file current. Missing languages are skipped on CI; failing tests fail the job.",
-    "Forbidden: .env in git, git push, --no-verify, terraform apply, fallback-secret, hardcoded localhost in app source, Playwright, Detox.",
+    "Forbidden: .env in git, git push, --no-verify, terraform apply, fallback-secret, hardcoded localhost in app source. Do not add Playwright or Detox as product test runners. Project MCP (including a Playwright MCP server in .cursor/mcp.json) is allowed.",
+    ...mcpBriefingLines(loadProjectMcp(repoRoot, engineRoot)),
     "Inventory:",
     inv,
     ...productContextBlock(repoRoot, engineRoot),

@@ -1,4 +1,5 @@
 import { query, type Options, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { mcpToolAllowlist, toClaudeMcpServers, type ProjectMcp } from "../mcp.js";
 import type { AgentHandle, AgentRun, WaitStatus } from "./types.js";
 
 function assistantText(msg: SDKMessage): string {
@@ -29,18 +30,23 @@ export async function createClaudeAgent(opts: {
   cwd: string;
   model?: string;
   apiKey?: string;
+  mcp?: ProjectMcp;
 }): Promise<AgentHandle> {
   return {
     id: "claude",
     async send(prompt: string): Promise<AgentRun> {
       const id = "claude-" + String(Date.now());
       const abort = new AbortController();
+      const mcpTools = opts.mcp ? mcpToolAllowlist(opts.mcp.names) : [];
       const options: Options = {
         cwd: opts.cwd,
         abortController: abort,
         permissionMode: "acceptEdits",
-        allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep", ...mcpTools],
       };
+      if (opts.mcp && opts.mcp.names.length) {
+        options.mcpServers = toClaudeMcpServers(opts.mcp.servers);
+      }
       if (opts.model) {
         options.model = opts.model;
       }

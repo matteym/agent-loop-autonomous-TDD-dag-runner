@@ -17,6 +17,10 @@ describe("isControlledDirty", () => {
     expect(isControlledDirty(".github/workflows/ci.yml")).toBe(false);
   });
 
+  it("ignores operator-owned .cursor/mcp.json so yarn task can start", () => {
+    expect(isControlledDirty(".cursor/mcp.json")).toBe(true);
+  });
+
   it("ignores a nested engine plugin folder on the product repo", () => {
     const plugin = "agent-loop-autonomous-TDD-dag-runner";
     expect(isControlledDirty(plugin, plugin)).toBe(true);
