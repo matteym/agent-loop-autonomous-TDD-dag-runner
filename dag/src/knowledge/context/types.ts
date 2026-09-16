@@ -20,3 +20,13 @@ export type ContextBuilderInput = {
   memory_root?: string;
   repo_root?: string;
 };
+
+export type ContextSufficiency = {
+  files_understood: boolean;
+  dependencies_understood: boolean;
+  tests_found: boolean;
+  architecture_found: boolean;
+  history_checked: boolean;
+  failures_checked: boolean;
+  invariants_checked: boolean;
+};
