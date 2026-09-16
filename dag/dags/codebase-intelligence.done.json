@@ -191,6 +191,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "context-sufficiency-gate",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Heuristic sufficiency in dag/src/knowledge/context: files_understood, dependencies_understood, tests_found, architecture_found, history_checked, failures_checked, invariants_checked. If too many essential flags are false, mayModify() is false (quality gate). Not a fake math proof — boolean heuristics. Tests: empty context blocks modify; filled fixture allows modify. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(context): add sufficiency quality gate",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
