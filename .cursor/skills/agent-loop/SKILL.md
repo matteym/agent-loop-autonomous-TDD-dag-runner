@@ -9,7 +9,7 @@ description: >-
 
 # Agent-loop protocol
 
-Runtime: one local agent handle (Cursor `@cursor/sdk` or Claude Code SDK) plus one send per node and fix round. No pstack. MCP is optional read-only context.
+Runtime: one local agent handle (Cursor `@cursor/sdk` or Claude Code SDK) plus one send per node and fix round. No pstack. Project MCP servers from `.cursor/mcp.json` are passed to the agent; the operator owns that file.
 
 Operator manual: `dag/README.md`. Default: clone this engine inside a product git repo, then from `dag/`, `yarn run init --remote=https://github.com/OWNER/REPO.git` then `yarn task "intent"`. Expert/CI: `yarn task --dagfile=<your.json>`.
 
@@ -28,7 +28,7 @@ Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git,
 2. Read the current node in the DAG JSON (`--dagfile` or `dag/metadata/task.json`). The orchestrator appends a deterministic repo briefing (inventoried packages, this node's tests, exact commit subject, forbidden paths, `.cursor/product-context.md`, recent product git log). Do not treat the briefing as extra scope.
 3. If `.cursor/product-context.md` exists on the **product** repo (parent when this engine is nested), treat it as architecture and shipped history. Do not re-implement those features unless the ticket says so.
 4. Copy APIs from existing code in this repo. Do not invent syntax. When nested, write product code on the parent git repo, never inside this plugin folder.
-5. Do not use MCP to mutate cloud state.
+5. Do not use MCP to mutate production cloud state, `terraform apply`, or `git push`. Use project MCP tools when the ticket needs them (example: Playwright MCP to open a site and inspect clicks).
 
 ## SECTION 2 — Readiness
 

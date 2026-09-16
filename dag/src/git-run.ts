@@ -30,6 +30,9 @@ export function isControlledDirty(file: string, pluginName: string | null = plug
   if (n === "dag" || n.startsWith("dag/")) {
     return true;
   }
+  if (n === ".cursor/mcp.json") {
+    return true;
+  }
   return false;
 }
 
@@ -73,6 +76,7 @@ export function orchestratorCommit(message: string, allowEmpty: boolean | undefi
     "dag/logs/failures.log",
     "dag/metadata/agent-id",
     "dag/history/nodes.jsonl",
+    ".cursor/mcp.json",
   ];
   if (pluginDirName) {
     resetArgs.push(pluginDirName);

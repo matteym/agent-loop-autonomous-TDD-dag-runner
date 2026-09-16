@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { blockedCommitPaths, recentGitLog } from "./git-run.js";
 import { engineKnowledgeCwd, inventoryMarkers } from "./inventory.js";
+import { loadProjectMcp, mcpBriefingLines } from "./mcp.js";
 import { engineRoot, repoRoot, isPluginWalkDir } from "./paths.js";
 import { productContextBlock } from "./product-context.js";
 import type { Task, TestSpec } from "./types.js";
@@ -11,7 +12,8 @@ export const protocolPreamble =
   "This is one agent turn. Do not git push, --no-verify, terraform apply, or terraform destroy. " +
   "Run only the test commands listed for this node in the briefing. " +
   "Create and edit this ticket's package files only under this node's tests.cwd (repo-relative). " +
-  "Do not create a top-level src/ directory at the repository root.";
+  "Do not create a top-level src/ directory at the repository root. " +
+  "If project MCP servers are listed in the briefing, use those tools when the ticket needs them.";
 
 export const redPhaseRules =
   "Write or extend failing tests for this ticket. Do not change production code except if tests cannot compile. " +
@@ -141,6 +143,7 @@ export function buildRepoBriefing(task: Task, commitNow: boolean): string {
     "This node tests:",
     ...formatNodeTests(task.tests).map((line) => "- " + line),
     ...cwdLockLines(task.tests),
+    ...mcpBriefingLines(loadProjectMcp(repoRoot, engineRoot)),
     "Forbidden paths / actions:",
     ...forbidden.map((line) => "- " + line),
   ].join("\n");

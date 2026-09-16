@@ -1,5 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { srcDir } from "./port.js";
 
 const ignoreLines = [
@@ -48,7 +48,11 @@ export function copyEngineCursor(engineRoot: string, productRoot: string): void 
   if (!existsSync(from)) {
     return;
   }
-  cpSync(from, join(productRoot, ".cursor"), { recursive: true, force: true });
+  cpSync(from, join(productRoot, ".cursor"), {
+    recursive: true,
+    force: true,
+    filter: (src) => basename(src) !== "mcp.json",
+  });
 }
 
 export function writeBootstrap(repoRoot: string, extraIgnore: string[] = []): void {

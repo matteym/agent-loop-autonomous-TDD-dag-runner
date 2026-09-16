@@ -110,6 +110,23 @@ Brownfield: `yarn task "…"`. A package missing from inventory (example `Client
 
 Already-written queue: `yarn task --dagfile=path/to/your-dag.json`.
 
+## MCP
+
+The loop does not install MCP servers. Put them in the product `.cursor/mcp.json`. Cursor and Claude agents receive every valid server from that file. Example Playwright:
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+Do not put secrets in the JSON; use `${ENV_NAME}` and the process environment. Init never overwrites an existing `.cursor/mcp.json`.
+
 `tests[].cwd` is the working directory (repo-relative). `optionalCwd` is a **boolean** on that tests entry, never a path string, never on the task object.
 
 Codebase intelligence (20 nodes, skip planner). Every node runs `yarn test` in `dag/src/knowledge` — **not** a top-level `src/`:

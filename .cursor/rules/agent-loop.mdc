@@ -9,6 +9,8 @@ Follow `.cursor/skills/agent-loop/SKILL.md`. You are one `Agent.send` for the cu
 
 Write package files only under this node's `tests[].cwd` (repo-relative). Do not create a top-level `src/` when cwd is `dag/src/knowledge`. `optionalCwd` is a boolean on the tests entry, never a path string.
 
+Project MCP servers live in `.cursor/mcp.json` (operator-owned). Use those tools when the ticket needs them. Do not use MCP for `git push`, `terraform apply`, or production cloud mutation.
+
 Do not `git push`, `--no-verify`, `terraform apply`, or `terraform destroy`. Do not `git commit` unless this send is COMMIT NOW. On COMMIT NOW, use the exact `commit` string from the DAG (briefing). Orchestrator runs TDD when the node has tests, then guard, tests from the DAG JSON, COMMIT NOW, archive to sibling `*.done.json`.
 
 For architecture / scaffold tasks: structural files (`package.json`, `tsconfig.json`, folder structures, and index stubs) are allowed in the RED phase if required for test execution, provided they contain no business logic.
