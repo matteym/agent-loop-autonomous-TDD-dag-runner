@@ -5,4 +5,6 @@ export type {
 } from "./types.js";
 export { retrieveExactPathSymbol } from "./exact-path-symbol.js";
 export { retrieveGitDeps } from "./git-deps.js";
-export type { RetrieveGitDepsInput } from "./types.js";
+export { retrieveHybridRank } from "./hybrid-rank.js";
+export type { RetrieveGitDepsInput, RetrieveHybridInput } from "./types.js";
+export type { HybridRetrievalResult } from "./types.js";

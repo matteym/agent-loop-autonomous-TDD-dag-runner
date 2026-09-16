@@ -1,3 +1,5 @@
+import type { MemoryEntryType } from "../memory/types.js";
+
 export type RetrievalMatchKind =
   | "exact"
   | "symbol"
@@ -15,6 +17,20 @@ export type RetrievalHit = {
   title?: string;
   commit_hash?: string;
   commit_subject?: string;
+  memory_type?: MemoryEntryType;
+};
+
+export type HybridRetrievalResult = {
+  hits: RetrievalHit[];
+  /** Phase 1: optional semantic slot stays empty (no cloud embeddings). */
+  semantic: RetrievalHit[];
+};
+
+export type RetrieveHybridInput = {
+  query: string;
+  codebase_root: string;
+  repo_root?: string;
+  memory_root?: string;
 };
 
 export type RetrieveExactPathSymbolInput = {
