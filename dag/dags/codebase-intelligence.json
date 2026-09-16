@@ -1,0 +1,287 @@
+{
+  "title": "local codebase intelligence for the autonomous runtime",
+  "model": "composer-2.5",
+  "cwd": "..",
+  "tasks": [
+    {
+      "id": "scaffold-knowledge-package",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules (task.ts, loop.ts, etc.). Scaffold dag/src/knowledge/ as a local knowledge library imported later by dag/src (do not clone Atlas, no UI, no SaaS, no cloud DB). Add dag/src/knowledge/package.json with a yarn test script, dag/src/knowledge/tsconfig.json, vitest. Create empty folders dag/src/knowledge/state dag/src/knowledge/codebase dag/src/knowledge/memory dag/src/knowledge/context dag/src/knowledge/diagnostics with barrel stubs. Gitignore .agent-memory/ at repo root via .gitignore merge (never commit .env). Tests: package can be imported and folders exist. For this scaffold RED: structural files (package.json, tsconfig.json, folders, index stubs) are allowed if tests cannot run without them; no business logic in RED. Use env for any URLs, never hardcode, never commit .env.",
+      "commit": "feat(knowledge): scaffold local knowledge package",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "durable-run-node-state",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Phase 1 durable state in dag/src/knowledge/state: implement RunState and NodeState types plus a filesystem JSON store under .agent-memory/runs (gitignored). Persist run_id, dag title, node id, status, started_at, finished_at. Load and save must work after process exit (write file, new store instance, read back). No LLM, no cloud, no UI. Do not modify dag/src/loop.ts yet. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(state): persist run and node state",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "append-only-checkpoints",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Append-only checkpoint log (JSONL) under .agent-memory/checkpoints, implemented in dag/src/knowledge/state. Required phases: RUN_STARTED PLAN_CREATED NODE_STARTED CONTEXT_BUILT RED_STARTED RED_COMPLETED GREEN_STARTED GREEN_COMPLETED VERIFICATION_STARTED VERIFICATION_COMPLETED NODE_COMPLETED NODE_FAILED REPAIR_STARTED REPAIR_COMPLETED COMMIT_CREATED RUN_COMPLETED. Each record: checkpoint_id, run_id, node_id, phase, status, workspace branch+commit, context memory_ids and files, tests passed/failed, optional failure type+signature, next_action, created_at. Never rewrite past lines; append only. Tests: append two events, reload, order preserved. No cloud. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(state): add append-only checkpoints",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "resume-from-checkpoint",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Resume in dag/src/knowledge/state: given a run_id, load latest checkpoint, list nodes already NODE_COMPLETED, return next_action without redoing finished work. If workspace commit in checkpoint does not match current HEAD, resume must fail closed (do not continue blindly). Tests: completed node skipped; mismatch HEAD refused. No dag/src/loop.ts wiring yet. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(state): resume runs from checkpoints",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "wire-loop-checkpoints",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. You MAY edit dag/src/loop.ts and dag/src/task.ts for this node only; knowledge helpers stay in dag/src/knowledge/. Orchestrator still owns git push, tests, COMMIT NOW. At each existing loop phase (plan written, node start, red, green, guard/test, commit, archive, fail), append the matching checkpoint and update RunState/NodeState. Do not add UI or change TDD order. Tests in dag/src/knowledge/ cover the hook helpers used by the loop (recordPhase). Agent never git push. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(loop): write checkpoints at phase changes",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "codebase-file-symbol-index",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Implement in dag/src/knowledge/codebase. Scan a fixture tree: files, imports, exports, symbols (exported functions/classes from ts/js). Query: where is symbol Y defined, which files import path X. Local filesystem only, no embeddings yet, no cloud. Tests use a temp directory fixture, not this whole repo. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(codebase): index files imports and symbols",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "codebase-tests-deps-index",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Extend dag/src/knowledge/codebase: test files (*.test.ts, *.spec.ts), package.json dependencies, which tests sit next to a module path. Query: which tests cover path X, which package deps a file's directory uses. Local only. Tests with fixtures. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(codebase): index tests and package deps",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "codebase-git-index",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/codebase: for a path, collect recent git log subjects and hashes via git log (local repo). Query: recent commits touching this file. Do not dump full git history to a LLM. Tests: init a temp git repo, commit a file, index returns that subject. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(codebase): index recent git history for paths",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "memory-store-jsonl",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: MemoryStore independent of any LLM provider: add, search, get, update, invalidate. Persist as local JSONL under .agent-memory/project (no cloud vector DB). search by substring in title/content. Tests: add, get, search, update, invalidate. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(memory): add local jsonl memory store",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "memory-types-evidence",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: typed entries FACT DECISION CONVENTION ARCHITECTURE FAILURE SOLUTION LESSON INVARIANT TEST_INSIGHT DEPENDENCY. Required fields: id, type, title, content, scope files/modules/symbols, evidence run_id/node_id/tests, confidence 0-1, created_at, last_verified_at, status candidate|verified|stale|invalidated. Reject add() without evidence for FACT/DECISION/ARCHITECTURE (LLM-only prose must not become verified). Tests cover reject-without-evidence and status values. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(memory): require types evidence and status",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "memory-gate-invalidate",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: MemoryGate persist only if factual, useful later, has evidence, has scope. invalidate(id, reason) sets status invalidated and keeps the record. markStale(id) sets stale. search() default excludes stale and invalidated. Tests: gate drops candidate without evidence; invalidate hides from default search but get() still returns it. No cloud. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(memory): add memory gate and invalidation",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "retrieval-exact-path-symbol",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Hybrid retrieval phase 1 without embeddings in dag/src/knowledge/: exact match, path/module match, symbol match against MemoryStore plus codebase index. Rank by simple scores (exact > symbol > path). Tests with fixtures: query refresh token finds token.ts and a FAILURE memory scoped to that file. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(retrieval): match exact path and symbols",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "retrieval-git-deps",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Extend retrieval in dag/src/knowledge/ with dependency-graph neighbors from the codebase index and recent git commits for matched files. Still no embeddings. Tests: file A imports B, query A also retrieves B; git subject for A appears in hits. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(retrieval): add git and dependency hits",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "retrieval-hybrid-rank",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Combine exact, structural, git, memory-type (FAILURE/SOLUTION/DECISION) into one ranked list with a stable score in dag/src/knowledge/. Optional semantic slot may return empty in phase 1 (do not add a cloud embedding API). Tests: FAILURE memories outrank unrelated FACT for a failure-like query. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(retrieval): rank hybrid local results",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "context-builder",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/context: ContextBuilder.build({nodePrompt, filesHint}): assemble AgentContext with objective, files, symbols, deps, tests, conventions, architecture, historical decisions, similar failures, solutions, recent git, invariants — each from retrieval, truncated. Never dump the whole repo. Tests: builder output includes failure memory for a known fixture file and omits unrelated files. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(context): build relevant node context",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "context-sufficiency-gate",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Heuristic sufficiency in dag/src/knowledge/context: files_understood, dependencies_understood, tests_found, architecture_found, history_checked, failures_checked, invariants_checked. If too many essential flags are false, mayModify() is false (quality gate). Not a fake math proof — boolean heuristics. Tests: empty context blocks modify; filled fixture allows modify. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(context): add sufficiency quality gate",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "wire-loop-context",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. You MAY edit dag/src/briefing.ts and dag/src/loop.ts for this node only; knowledge implementation stays in dag/src/knowledge/. Before each node send, build context, append a short relevant briefing (not the whole codebase). If mayModify is false on GREEN, prepend an inspect-more instruction; do not skip TDD. Orchestrator still owns tests and git. Checkpoint CONTEXT_BUILT with memory_ids. Tests in dag/src/knowledge/ cover briefing text contains retrieved failure title. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(loop): inject retrieved context into sends",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "failure-learning",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/diagnostics: normalize failures: type, signature, stack snippet, files, symbols, tests, root_cause optional, attempted_solutions, successful_solution, evidence. Persist as FAILURE then SOLUTION via MemoryGate when a later attempt passes. Similar-failure search by signature and files. Tests: same signature retrieves the stored successful_solution. Observed results only, do not invent success_rate. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(diagnostics): learn from verified failures",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "repeat-failure-strategy",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules except a helper import if this ticket needs the loop to call it. Detect repeated same failure signature plus same attempted solution. After a small threshold, next_action is strategy-change (do not loop forever). Strategy stats derived only from recorded pass/fail counts. Tests: three identical fail+solution pairs trip the detector; stats match recorded rows. Wire a helper the loop can call on fix rounds without letting the agent git push. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(diagnostics): stop repeated failed repairs",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "benchmarks-and-trace",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/diagnostics: local benchmark fixtures: questions like where is auth, which tests protect Y, what failure hit X. Compare baseline (filename substring) vs retrieval+memory; report precision-like hit rate on fixtures (not LLM-as-judge). Traceability record: intent, run_id, node_id, memory_ids, files, tests, commit sha — persist JSONL so a chain can be rebuilt after restart. Split run memory vs project memory: only MemoryGate-verified entries copy to project store at node end. No UI. Tests: benchmark scores retrieval above baseline on the fixture; trace round-trips; run-only notes do not enter project store. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(diagnostics): benchmark retrieval and trace runs",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": ["test"],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    }
+  ]
+}

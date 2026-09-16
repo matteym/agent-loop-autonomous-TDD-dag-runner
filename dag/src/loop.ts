@@ -8,7 +8,7 @@ import {
   persistAgentId,
   saveState,
 } from "./archive.js";
-import { buildRepoBriefing, protocolPreamble } from "./briefing.js";
+import { buildRepoBriefing, protocolPreamble, redPhaseRules } from "./briefing.js";
 import { ciWorkflowRel, syncCiWorkflow } from "./ci.js";
 import { commitMessageValid } from "./commit.js";
 import {
@@ -182,7 +182,9 @@ async function runTddRed(agent: AgentHandle, task: Task): Promise<void> {
     agent,
     "DAG node " +
       task.id +
-      " TDD RED only. Write or extend failing tests for this ticket. Do not change production code except if tests cannot compile. Do not commit.\n" +
+      " TDD RED only. " +
+      redPhaseRules +
+      " Do not commit.\n" +
       task.prompt,
     task
   );

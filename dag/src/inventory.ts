@@ -9,6 +9,9 @@ export const inventoryMarkers = [
   "Cargo.toml",
 ] as const;
 
+/** Only dag path allowed as a DAG tests.cwd (engine knowledge package). cwd "dag" stays forbidden. */
+export const engineKnowledgeCwd = "dag/src/knowledge";
+
 export type LangKind = "ts" | "py" | "go" | "rust";
 
 export type TestCommand = {
@@ -131,6 +134,12 @@ export function langOfTestCommand(test: TestCommand): LangKind | null {
 export function listTestablePackages(repoRoot: string): TestablePkg[] {
   const out: TestablePkg[] = [];
   walkTestable(repoRoot, repoRoot, 0, out);
+  const extra = join(repoRoot, engineKnowledgeCwd);
+  const extraTest = inferTestCommand(extra);
+  const extraLang = extraTest ? langOfTestCommand(extraTest) : null;
+  if (extraTest && extraLang) {
+    out.push({ rel: engineKnowledgeCwd, lang: extraLang, test: extraTest });
+  }
   const seen = new Set<string>();
   return out.filter((pkg) => {
     if (seen.has(pkg.rel)) {

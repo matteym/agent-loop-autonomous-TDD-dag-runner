@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizePlannedDag } from "./plan-normalize.js";
+import { dagDir } from "./paths.js";
 import { buildPlannerPrompt, maxPlanTasks, validateDag } from "./task.js";
 import type { Dag, TestSpec } from "./types.js";
 
@@ -30,8 +31,8 @@ function dagWith(taskExtra: Record<string, unknown>, tests = [pyTests]): Dag {
 }
 
 describe("planner limits", () => {
-  it("allows up to 10 features per yarn task", () => {
-    expect(maxPlanTasks).toBe(10);
+  it("allows up to 20 features per yarn task", () => {
+    expect(maxPlanTasks).toBe(20);
   });
 });
 
@@ -94,5 +95,50 @@ describe("planner prompt", () => {
     expect(prompt).toContain('"optionalCwd":true');
     expect(prompt).toContain("never on the task object");
     expect(prompt).toContain("put optionalCwd true on that tests[] entry");
+  });
+});
+
+const knowledgeTests: TestSpec[] = [
+  {
+    cwd: "dag/src/knowledge",
+    cmd: "yarn",
+    args: ["test"],
+    optionalCwd: true,
+  },
+];
+
+describe("codebase-intelligence dagfile", () => {
+  it("validates as 20 sequential dag/src/knowledge nodes", () => {
+    const raw = readFileSync(join(dagDir, "dags", "codebase-intelligence.json"), "utf8");
+    const dag = JSON.parse(raw) as Dag;
+    expect(dag.tasks).toHaveLength(20);
+    expect(dag.tasks.every((task) => task.tests[0]?.cwd === "dag/src/knowledge")).toBe(true);
+    expect(dag.tasks.every((task) => task.tests[0]?.optionalCwd === true)).toBe(true);
+    expect(validateDag(dag, [])).toBeNull();
+  });
+
+  it("rejects tests.cwd dag as unsafe", () => {
+    const dag = dagWith(
+      {},
+      [{ cwd: "dag", cmd: "yarn", args: ["test"], optionalCwd: true }]
+    );
+    expect(validateDag(dag, [])).toMatch(/unsafe new cwd/);
+  });
+
+  it("accepts optionalCwd on dag/src/knowledge", () => {
+    const dag: Dag = {
+      title: "knowledge",
+      model: "composer-2.5",
+      cwd: "..",
+      tasks: [
+        {
+          id: "scaffold-knowledge-package",
+          prompt: "TypeScript vitest package in dag/src/knowledge",
+          commit: "feat(knowledge): scaffold local knowledge package",
+          tests: knowledgeTests,
+        },
+      ],
+    };
+    expect(validateDag(dag, [])).toBeNull();
   });
 });

@@ -21,7 +21,7 @@ That’s the whole product: **init** (empty stack + GitHub Actions + first push)
 
 | You type | The runner does |
 |---|---|
-| One intent | Splits it into ≤ 10 feature nodes |
+| One intent | Splits it into ≤ 20 feature nodes |
 | Nothing else | RED tests, GREEN code, guard, node tests |
 | — | Commit with the exact subject, then push |
 | — | Open or reuse a PR (`gh`) |

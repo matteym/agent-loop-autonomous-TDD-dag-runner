@@ -5,6 +5,7 @@ import { hasCompose, isEmptyTarget } from "./init/detect.js";
 import { missingRemoteHint } from "./init/run.js";
 import { runLoop } from "./loop.js";
 import {
+  engineKnowledgeCwd,
   inferTestCommand,
   inventoryMarkers,
   mismatchLangTests,
@@ -29,7 +30,7 @@ import type { Dag } from "./types.js";
 
 export { normalizePlannedDag } from "./plan-normalize.js";
 
-export const maxPlanTasks = 10;
+export const maxPlanTasks = 20;
 
 type Pkg = {
   rel: string;
@@ -107,6 +108,10 @@ function walkPackages(dir: string, depth: number, out: Pkg[]) {
 function listPackages(): Pkg[] {
   const out: Pkg[] = [];
   walkPackages(repoRoot, 0, out);
+  const knowledgeDir = join(repoRoot, engineKnowledgeCwd);
+  if (dirHasMarker(knowledgeDir)) {
+    out.push({ rel: engineKnowledgeCwd, test: inferTest(knowledgeDir) });
+  }
   const seen = new Set<string>();
   return out.filter((pkg) => {
     if (seen.has(pkg.rel)) {
