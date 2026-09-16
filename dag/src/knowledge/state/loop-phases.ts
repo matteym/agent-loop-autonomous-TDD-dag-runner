@@ -5,6 +5,7 @@ export const LOOP_EVENT_CHECKPOINT_PHASE: Record<LoopPhaseEvent, CheckpointPhase
   run_started: "RUN_STARTED",
   plan_created: "PLAN_CREATED",
   node_started: "NODE_STARTED",
+  context_built: "CONTEXT_BUILT",
   red_started: "RED_STARTED",
   red_completed: "RED_COMPLETED",
   green_started: "GREEN_STARTED",
@@ -20,6 +21,7 @@ export const LOOP_EVENT_CHECKPOINT_PHASE: Record<LoopPhaseEvent, CheckpointPhase
 export const LOOP_ORCHESTRATOR_PHASE_EVENTS: LoopPhaseEvent[] = [
   "plan_created",
   "node_started",
+  "context_built",
   "red_started",
   "green_started",
   "verification_started",

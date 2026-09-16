@@ -109,6 +109,7 @@ export const LOOP_PHASE_EVENTS = [
   "run_started",
   "plan_created",
   "node_started",
+  "context_built",
   "red_started",
   "red_completed",
   "green_started",

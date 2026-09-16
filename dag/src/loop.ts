@@ -42,7 +42,10 @@ import { createAgentHandle } from "./providers/create.js";
 import type { AgentHandle } from "./providers/types.js";
 import { resolveProvider } from "./providers/select.js";
 import { recordPhase } from "./knowledge/state/record-phase.js";
+import { resolveAgentMemoryRoot } from "./knowledge/state/paths.js";
 import type { LoopPhaseEvent } from "./knowledge/state/types.js";
+import { buildNodeSendContext } from "./knowledge/context/build-node-send-context.js";
+import type { NodeSendContextResult } from "./knowledge/context/loop-context.js";
 import { initRunLog, log, nodeSeparator, phase } from "./run-log.js";
 import type { ProviderName } from "./cli.js";
 import type { Dag, Task, TestSpec } from "./types.js";
@@ -98,6 +101,22 @@ function tddEnabled(task: Task): boolean {
   return task.tests.length > 0;
 }
 
+function inferFilesHintFromPrompt(prompt: string): string[] {
+  const pattern = /(?:[\w.-]+\/)+[\w.-]+\.(?:ts|tsx|js|jsx|py|go|rs)/gi;
+  const found = prompt.match(pattern) ?? [];
+  return [...new Set(found.map((part) => part.replace(/\\/g, "/")))];
+}
+
+function buildTaskSendContext(task: Task): NodeSendContextResult {
+  return buildNodeSendContext({
+    nodePrompt: task.prompt,
+    filesHint: inferFilesHintFromPrompt(task.prompt),
+    codebase_root: repoRoot,
+    memory_root: resolveAgentMemoryRoot(repoRoot),
+    repo_root: repoRoot,
+  });
+}
+
 function runTests(tests: TestSpec[]): { ok: boolean; output: string } {
   if (!tests.length) {
     return { ok: true, output: "no tests for this node" };
@@ -127,13 +146,26 @@ async function runAgentTask(
   agent: AgentHandle,
   prompt: string,
   task: Task,
-  commitNow = false
+  commitNow = false,
+  sendContext?: NodeSendContextResult
 ): Promise<void> {
   const turn = commitNow
     ? "COMMIT NOW. git commit with the exact subject from the briefing. No extra subject words, no --no-verify, no git push, no amend, no further code edits.\n\n"
     : "Do not git commit on this turn.\n\n";
+  const prefix = sendContext?.inspect_prefix ?? "";
+  const contextBlock =
+    sendContext && sendContext.context_briefing.trim().length > 0
+      ? sendContext.context_briefing + "\n\n"
+      : "";
   const run = await agent.send(
-    protocolPreamble + "\n\n" + turn + prompt + "\n\n" + buildRepoBriefing(task, commitNow)
+    protocolPreamble +
+      "\n\n" +
+      turn +
+      prefix +
+      prompt +
+      "\n\n" +
+      contextBlock +
+      buildRepoBriefing(task, commitNow)
   );
   log("run.id=" + run.id);
   const result = await run.wait();
@@ -142,6 +174,24 @@ async function runAgentTask(
     const detail = result.error?.message || result.status;
     throw new Error("agent run " + result.status + " id=" + run.id + " " + detail);
   }
+}
+
+async function runAgentTaskWithContext(
+  agent: AgentHandle,
+  dag: Dag,
+  task: Task,
+  prompt: string,
+  commitNow: boolean,
+  nextAction: string
+): Promise<void> {
+  const sendContext = buildTaskSendContext(task);
+  captureLoopPhase(dag, task, "context_built", nextAction, {
+    context: {
+      memory_ids: sendContext.memory_ids,
+      files: sendContext.context_files,
+    },
+  });
+  await runAgentTask(agent, prompt, task, commitNow, sendContext);
 }
 
 function runGuard(): { ok: boolean; output: string } {
@@ -213,25 +263,31 @@ function recordFailure(taskId: string, output: string) {
 async function runTddRed(agent: AgentHandle, task: Task, dag: Dag): Promise<void> {
   captureLoopPhase(dag, task, "red_started", "agent-red-send");
   phase("RED", task.id);
-  await runAgentTask(
+  await runAgentTaskWithContext(
     agent,
+    dag,
+    task,
     "DAG node " +
       task.id +
       " TDD RED only. " +
       redPhaseRules +
       " Do not commit.\n" +
       task.prompt,
-    task
+    false,
+    "agent-red-send"
   );
   let red = runTests(task.tests);
   for (let attempt = 0; red.ok && attempt < maxRedAttempts; attempt += 1) {
     log("tests still green, red attempt " + (attempt + 1) + " for " + task.id);
-    await runAgentTask(
+    await runAgentTaskWithContext(
       agent,
+      dag,
+      task,
       "Tests are green before production change for node " +
         task.id +
         ". Add a test that fails on current HEAD for this ticket then stop. Do not implement production code. Do not commit.",
-      task
+      false,
+      "agent-red-resend"
     );
     red = runTests(task.tests);
   }
@@ -309,7 +365,7 @@ function publishNode(title: string): void {
   }
 }
 
-async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean> {
+async function finishNodeCommit(agent: AgentHandle, task: Task, dag: Dag): Promise<boolean> {
   if (!commitMessageValid(task.commit)) {
     log("commit message rejected: " + task.commit);
     return false;
@@ -317,15 +373,17 @@ async function finishNodeCommit(agent: AgentHandle, task: Task): Promise<boolean
   phase("COMMIT NOW", task.commit);
   const before = gitHead();
   try {
-    await runAgentTask(
+    await runAgentTaskWithContext(
       agent,
+      dag,
+      task,
       "DAG node " +
         task.id +
         " COMMIT NOW. Stage ticket files and .github/workflows/ci.yml if present. Do not stage .env, dag/metadata/state.json, dag/metadata/agent-id, or dag/logs/failures.log. Run git commit -m " +
         JSON.stringify(task.commit) +
         " with that subject only. Use the existing git user.name / user.email (do not invent an author).",
-      task,
-      true
+      true,
+      "agent-commit-send"
     );
   } catch (err) {
     log("agent commit turn failed: " + String(err));
@@ -425,31 +483,44 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
       await runTddRed(agent, task, dag);
       captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
-      await runAgentTask(
+      await runAgentTaskWithContext(
         agent,
+        dag,
+        task,
         "DAG node " +
           task.id +
           " TDD GREEN. Implement minimal production code for this ticket. Put application code in src/. Match the node language (package.json+yarn / pyproject+uv pytest / go.mod+go test / Cargo.toml+cargo test). If you need a database, edit docker-compose.yml and .env.example only (never .env). Do not commit.\n" +
           task.prompt,
-        task
+        false,
+        "agent-green-send"
       );
     } else {
       captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
-      await runAgentTask(agent, "DAG node " + task.id + ". " + task.prompt, task);
+      await runAgentTaskWithContext(
+        agent,
+        dag,
+        task,
+        "DAG node " + task.id + ". " + task.prompt,
+        false,
+        "agent-green-send"
+      );
     }
 
     captureLoopPhase(dag, task, "verification_started", "run-guard-and-tests");
     let tests = validateNode(task.tests);
     for (let round = 0; !tests.ok && round < maxFixRounds; round += 1) {
       log("validation red, fix round " + (round + 1) + " for " + task.id);
-      await runAgentTask(
+      await runAgentTaskWithContext(
         agent,
+        dag,
+        task,
         "Validation failed for node " +
           task.id +
           ". Fix the root cause. Do not commit. Do not skip tests. Output:\n" +
           tests.output.slice(0, 8000),
-        task
+        false,
+        "agent-fix-send"
       );
       tests = validateNode(task.tests);
     }
@@ -477,7 +548,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     captureLoopPhase(dag, task, "verification_completed", "commit-or-fix", {
       tests: { passed: Math.max(task.tests.length, 1), failed: 0 },
     });
-    if (!(await finishNodeCommit(agent, task))) {
+    if (!(await finishNodeCommit(agent, task, dag))) {
       phase("FAIL", "commit " + task.id);
       captureLoopPhase(dag, task, "node_failed", "stop-run", {
         status: "failed",
