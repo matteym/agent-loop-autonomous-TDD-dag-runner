@@ -32,3 +32,15 @@ export type CodebaseIndex = {
   /** Nearest package.json `dependencies` / `devDependencies` for a file path. */
   findPackageDependenciesForFile(filePath: string): PackageDependencies;
 };
+
+export type GitPathCommit = {
+  hash: string;
+  subject: string;
+};
+
+export type RecentGitHistoryInput = {
+  repo_root: string;
+  file_path: string;
+  /** Cap history length (default from env or sensible default). */
+  limit?: number;
+};
