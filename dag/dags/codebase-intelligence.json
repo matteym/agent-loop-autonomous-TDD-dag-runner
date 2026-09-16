@@ -52,22 +52,6 @@
       "allowEmptyCommit": false
     },
     {
-      "id": "wire-loop-context",
-      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. You MAY edit dag/src/briefing.ts and dag/src/loop.ts for this node only; knowledge implementation stays in dag/src/knowledge/. Before each node send, build context, append a short relevant briefing (not the whole codebase). If mayModify is false on GREEN, prepend an inspect-more instruction; do not skip TDD. Orchestrator still owns tests and git. Checkpoint CONTEXT_BUILT with memory_ids. Tests in dag/src/knowledge/ cover briefing text contains retrieved failure title. Use env for URLs, never hardcode, never commit .env.",
-      "commit": "feat(loop): inject retrieved context into sends",
-      "tests": [
-        {
-          "cwd": "dag/src/knowledge",
-          "cmd": "yarn",
-          "args": [
-            "test"
-          ],
-          "optionalCwd": true
-        }
-      ],
-      "allowEmptyCommit": false
-    },
-    {
       "id": "failure-learning",
       "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/diagnostics: normalize failures: type, signature, stack snippet, files, symbols, tests, root_cause optional, attempted_solutions, successful_solution, evidence. Persist as FAILURE then SOLUTION via MemoryGate when a later attempt passes. Similar-failure search by signature and files. Tests: same signature retrieves the stored successful_solution. Observed results only, do not invent success_rate. Use env for URLs, never hardcode, never commit .env.",
       "commit": "feat(diagnostics): learn from verified failures",
