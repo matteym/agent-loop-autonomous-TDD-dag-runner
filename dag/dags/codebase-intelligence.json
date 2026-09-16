@@ -52,22 +52,6 @@
       "allowEmptyCommit": false
     },
     {
-      "id": "retrieval-hybrid-rank",
-      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Combine exact, structural, git, memory-type (FAILURE/SOLUTION/DECISION) into one ranked list with a stable score in dag/src/knowledge/. Optional semantic slot may return empty in phase 1 (do not add a cloud embedding API). Tests: FAILURE memories outrank unrelated FACT for a failure-like query. Use env for URLs, never hardcode, never commit .env.",
-      "commit": "feat(retrieval): rank hybrid local results",
-      "tests": [
-        {
-          "cwd": "dag/src/knowledge",
-          "cmd": "yarn",
-          "args": [
-            "test"
-          ],
-          "optionalCwd": true
-        }
-      ],
-      "allowEmptyCommit": false
-    },
-    {
       "id": "context-builder",
       "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/context: ContextBuilder.build({nodePrompt, filesHint}): assemble AgentContext with objective, files, symbols, deps, tests, conventions, architecture, historical decisions, similar failures, solutions, recent git, invariants — each from retrieval, truncated. Never dump the whole repo. Tests: builder output includes failure memory for a known fixture file and omits unrelated files. Use env for URLs, never hardcode, never commit .env.",
       "commit": "feat(context): build relevant node context",
