@@ -34,7 +34,7 @@ Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git,
 
 1. Read `package.json` / `pyproject.toml` / `tsconfig.json` of packages you will touch. Do not add a lint script unless the ticket says so.
 2. `tests` on this DAG node are the gate. Do not invent a second test runner.
-3. Match existing test commands and layout. `optionalCwd` is only for a **new** product path not yet in inventory (plan time). After GREEN the folder must exist and node tests must EXIT 0. Missing cwd does not skip tests.
+3. Match existing test commands and layout. `tests[].cwd` is the **only** package root for this send (repo-relative). `optionalCwd` is a boolean on that tests[] entry for a **new** path not yet in inventory — never a folder string, never on the task object. After GREEN the folder must exist and node tests must EXIT 0. Missing cwd does not skip tests. Do not create a top-level `src/` when this node's cwd is `dag/src/knowledge`.
 4. No new `fallback-secret`. No hardcoded `http://localhost` / `http://127.0.0.1` in application source (use env vars). Allowlisted: e2e tests, conftest, compose, prometheus yml, schema.sql, `.cursor/`, `dag/`, markdown.
 
 ## SECTION 3 — Loop
@@ -45,7 +45,7 @@ Do not run extra SDK roundtrips for lint/commit. Orchestrator owns TEST, GUARD, 
 
 No tests: one send, then GUARD + COMMIT NOW (`allowEmptyCommit` if needed). With tests, TDD:
 
-1. **RED** — failing tests only. Orchestrator runs `tests` from the DAG. Up to 2 more red sends if still green. Do not commit.
+1. **RED** — failing tests only. Orchestrator runs `tests` from the DAG. Up to 2 more red sends if still green. Do not commit. For architecture / scaffold tasks: structural files (`package.json`, `tsconfig.json`, folder structures, and index stubs) are allowed in the RED phase if required for test execution, provided they contain no business logic.
 2. **GREEN** — minimal production code. Do not commit.
 3. **GUARD + TEST** — `node .cursor/hooks/guard-anti-patterns.mjs` then DAG tests. Up to 5 fix sends. Do not commit.
 4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Init already wrote `.github/workflows/ci.yml`; after node tests pass the orchestrator keeps that file current (do not invent a second workflow). Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored).
@@ -77,7 +77,7 @@ Up to 5 fix sends. Then `dag/logs/failures.log`, `git reset --hard HEAD` (tracke
 
 ## SECTION TASK
 
-Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. Greenfield bootstrap is `yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`): when this engine is nested in a product git repo, writes Compose, empty `src/`, `.cursor`, `.github/workflows/ci.yml` on the parent, gitignores this plugin folder, commits, and pushes `agent/init` on the **product** remote. `yarn task` does not replace init. Then one PLAN send (max 10 feature nodes; a full app or a module like auth may be several sequential tasks, including several in the same package). A new package (example `Client/`) may be a DAG node with `optionalCwd` and the test command for that language (`yarn test`, `uv`+pytest, `go test ./...`, `cargo test`) even if it is not in inventory yet; the agent must create the marker file and tests must pass. Inventoried packages keep their listed test command. FastAPI/gin/axum must not be planned as `yarn test`. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=<your.json>`.
+Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`. Greenfield bootstrap is `yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`): when this engine is nested in a product git repo, writes Compose, empty `src/`, `.cursor`, `.github/workflows/ci.yml` on the parent, gitignores this plugin folder, commits, and pushes `agent/init` on the **product** remote. `yarn task` does not replace init. Then one PLAN send (max 20 feature nodes; a full app or a module like auth may be several sequential tasks, including several in the same package). A new package (example `Client/`) may be a DAG node with `optionalCwd` and the test command for that language (`yarn test`, `uv`+pytest, `go test ./...`, `cargo test`) even if it is not in inventory yet; the agent must create the marker file and tests must pass. Inventoried packages keep their listed test command. FastAPI/gin/axum must not be planned as `yarn test`. The runner still owns TDD, guard, COMMIT NOW, and archive. Do not skip tests because the intent was a phrase or because the folder was missing at plan time. Skip the planner with `yarn task --dagfile=<your.json>`.
 
 ## ONBOARDING
 

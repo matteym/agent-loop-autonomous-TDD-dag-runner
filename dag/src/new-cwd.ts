@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { dirHasPackageMarker, testByLang } from "./inventory.js";
+import { dirHasPackageMarker, engineKnowledgeCwd, testByLang } from "./inventory.js";
 import { pluginDirName } from "./paths.js";
 
 const blockedSegments = new Set([
@@ -20,6 +20,9 @@ export function normalizeRelCwd(raw: string): string | null {
   }
   if (n.startsWith("/") || n.includes(":") || n.includes("\\")) {
     return null;
+  }
+  if (n === engineKnowledgeCwd) {
+    return n;
   }
   const parts = n.split("/");
   if (parts.length > 3) {

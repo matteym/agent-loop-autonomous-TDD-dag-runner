@@ -1,0 +1,55 @@
+{
+  "title": "local codebase intelligence for the autonomous runtime",
+  "model": "composer-2.5",
+  "cwd": "..",
+  "tasks": [
+    {
+      "id": "scaffold-knowledge-package",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules (task.ts, loop.ts, etc.). Scaffold dag/src/knowledge/ as a local knowledge library imported later by dag/src (do not clone Atlas, no UI, no SaaS, no cloud DB). Add dag/src/knowledge/package.json with a yarn test script, dag/src/knowledge/tsconfig.json, vitest. Create empty folders dag/src/knowledge/state dag/src/knowledge/codebase dag/src/knowledge/memory dag/src/knowledge/context dag/src/knowledge/diagnostics with barrel stubs. Gitignore .agent-memory/ at repo root via .gitignore merge (never commit .env). Tests: package can be imported and folders exist. For this scaffold RED: structural files (package.json, tsconfig.json, folders, index stubs) are allowed if tests cannot run without them; no business logic in RED. Use env for any URLs, never hardcode, never commit .env.",
+      "commit": "feat(knowledge): scaffold local knowledge package",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "durable-run-node-state",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Phase 1 durable state in dag/src/knowledge/state: implement RunState and NodeState types plus a filesystem JSON store under .agent-memory/runs (gitignored). Persist run_id, dag title, node id, status, started_at, finished_at. Load and save must work after process exit (write file, new store instance, read back). No LLM, no cloud, no UI. Do not modify dag/src/loop.ts yet. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(state): persist run and node state",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    },
+    {
+      "id": "append-only-checkpoints",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Append-only checkpoint log (JSONL) under .agent-memory/checkpoints, implemented in dag/src/knowledge/state. Required phases: RUN_STARTED PLAN_CREATED NODE_STARTED CONTEXT_BUILT RED_STARTED RED_COMPLETED GREEN_STARTED GREEN_COMPLETED VERIFICATION_STARTED VERIFICATION_COMPLETED NODE_COMPLETED NODE_FAILED REPAIR_STARTED REPAIR_COMPLETED COMMIT_CREATED RUN_COMPLETED. Each record: checkpoint_id, run_id, node_id, phase, status, workspace branch+commit, context memory_ids and files, tests passed/failed, optional failure type+signature, next_action, created_at. Never rewrite past lines; append only. Tests: append two events, reload, order preserved. No cloud. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(state): add append-only checkpoints",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
+    }
+  ]
+}

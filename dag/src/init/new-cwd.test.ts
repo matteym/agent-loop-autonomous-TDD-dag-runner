@@ -48,6 +48,13 @@ describe("new cwd", () => {
     expect(isSafeNewCwd("Server/../.git")).toBe(false);
   });
 
+  it("allowlists dag/src/knowledge and still rejects cwd dag", () => {
+    expect(normalizeRelCwd("dag/src/knowledge")).toBe("dag/src/knowledge");
+    expect(isSafeNewCwd("dag/src/knowledge")).toBe(true);
+    expect(isSafeNewCwd("dag")).toBe(false);
+    expect(isSafeNewCwd("src")).toBe(true);
+  });
+
   it("allows only known test runners for new packages", () => {
     expect(isAllowedNewTestSpec("yarn", ["test"])).toBe(true);
     expect(isAllowedNewTestSpec("uv", ["run", "python", "-m", "pytest", "-q"])).toBe(

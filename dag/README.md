@@ -20,7 +20,7 @@ yarn test
 | Command | Role |
 |---|---|
 | `yarn run init --remote=<github-url>` | required: bootstrap + `.github/workflows/ci.yml` + push `agent/*` |
-| `yarn task "…"` | intent → plan (max 10 features) → TDD loop |
+| `yarn task "…"` | intent → plan (max 20 features) → TDD loop |
 | `yarn test` | engine unit tests (`vitest run`) |
 
 `yarn tsc --noEmit` typechecks the engine.
@@ -109,6 +109,14 @@ Alternatively copy only `dag/` and `.cursor/` to the product root (engine = prod
 Brownfield: `yarn task "…"`. A package missing from inventory (example `Client/`) may use `optionalCwd` plus that language's test command; after GREEN the folder must exist and tests must pass.
 
 Already-written queue: `yarn task --dagfile=path/to/your-dag.json`.
+
+`tests[].cwd` is the working directory (repo-relative). `optionalCwd` is a **boolean** on that tests entry, never a path string, never on the task object.
+
+Codebase intelligence (20 nodes, skip planner). Every node runs `yarn test` in `dag/src/knowledge` — **not** a top-level `src/`:
+
+```bash
+yarn task --dagfile=dags/codebase-intelligence.json
+```
 
 ## UI
 
