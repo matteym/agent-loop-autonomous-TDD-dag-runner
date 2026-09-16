@@ -239,6 +239,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "repeat-failure-strategy",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules except a helper import if this ticket needs the loop to call it. Detect repeated same failure signature plus same attempted solution. After a small threshold, next_action is strategy-change (do not loop forever). Strategy stats derived only from recorded pass/fail counts. Tests: three identical fail+solution pairs trip the detector; stats match recorded rows. Wire a helper the loop can call on fix rounds without letting the agent git push. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(diagnostics): stop repeated failed repairs",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
