@@ -1,0 +1,9 @@
+{
+  "name": "@agent-loop/knowledge",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "test": "node ../../node_modules/vitest/vitest.mjs run"
+  }
+}
