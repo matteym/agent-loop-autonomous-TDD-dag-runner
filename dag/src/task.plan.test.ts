@@ -1,11 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { dirHasPackageMarker, engineKnowledgeCwd, testByLang } from "./inventory.js";
 import { normalizePlannedDag } from "./plan-normalize.js";
-import { dagDir } from "./paths.js";
+import { dagDir, donePathFor, repoRoot } from "./paths.js";
 import { buildPlannerPrompt, maxPlanTasks, validateDag } from "./task.js";
-import type { Dag, TestSpec } from "./types.js";
+import type { Dag, Task, TestSpec } from "./types.js";
 
 const pyTests: TestSpec = {
   cwd: "src/backend",
@@ -107,14 +108,37 @@ const knowledgeTests: TestSpec[] = [
   },
 ];
 
+function readArchivedTasks(donePath: string): Task[] {
+  if (!existsSync(donePath)) {
+    return [];
+  }
+  const parsed = JSON.parse(readFileSync(donePath, "utf8")) as { tasks?: Task[] };
+  return parsed.tasks ?? [];
+}
+
+function knowledgeInventory(): { rel: string; test: { cmd: string; args: string[] } }[] {
+  const abs = join(repoRoot, engineKnowledgeCwd);
+  if (existsSync(abs) && dirHasPackageMarker(abs)) {
+    return [{ rel: engineKnowledgeCwd, test: testByLang.ts }];
+  }
+  return [];
+}
+
 describe("codebase-intelligence dagfile", () => {
-  it("validates as 20 sequential dag/src/knowledge nodes", () => {
-    const raw = readFileSync(join(dagDir, "dags", "codebase-intelligence.json"), "utf8");
-    const dag = JSON.parse(raw) as Dag;
-    expect(dag.tasks).toHaveLength(20);
-    expect(dag.tasks.every((task) => task.tests[0]?.cwd === "dag/src/knowledge")).toBe(true);
-    expect(dag.tasks.every((task) => task.tests[0]?.optionalCwd === true)).toBe(true);
-    expect(validateDag(dag, [])).toBeNull();
+  it("covers 20 sequential dag/src/knowledge nodes across live and archive files", () => {
+    const dagPath = join(dagDir, "dags", "codebase-intelligence.json");
+    const dag = JSON.parse(readFileSync(dagPath, "utf8")) as Dag;
+    const byId = new Map<string, Task>();
+    for (const task of [...readArchivedTasks(donePathFor(dagPath)), ...dag.tasks]) {
+      byId.set(task.id, task);
+    }
+    const allTasks = [...byId.values()];
+    expect(allTasks).toHaveLength(20);
+    expect(allTasks.every((task) => task.tests[0]?.cwd === engineKnowledgeCwd)).toBe(true);
+    expect(allTasks.every((task) => task.tests[0]?.optionalCwd === true)).toBe(true);
+    if (dag.tasks.length) {
+      expect(validateDag(dag, knowledgeInventory())).toBeNull();
+    }
   });
 
   it("rejects tests.cwd dag as unsafe", () => {
@@ -126,19 +150,24 @@ describe("codebase-intelligence dagfile", () => {
   });
 
   it("accepts optionalCwd on dag/src/knowledge", () => {
-    const dag: Dag = {
-      title: "knowledge",
-      model: "composer-2.5",
-      cwd: "..",
-      tasks: [
-        {
-          id: "scaffold-knowledge-package",
-          prompt: "TypeScript vitest package in dag/src/knowledge",
-          commit: "feat(knowledge): scaffold local knowledge package",
-          tests: knowledgeTests,
-        },
-      ],
-    };
-    expect(validateDag(dag, [])).toBeNull();
+    const root = mkdtempSync(join(tmpdir(), "dag-knowledge-"));
+    try {
+      const dag: Dag = {
+        title: "knowledge",
+        model: "composer-2.5",
+        cwd: "..",
+        tasks: [
+          {
+            id: "scaffold-knowledge-package",
+            prompt: "TypeScript vitest package in dag/src/knowledge",
+            commit: "feat(knowledge): scaffold local knowledge package",
+            tests: knowledgeTests,
+          },
+        ],
+      };
+      expect(validateDag(dag, [], root)).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
