@@ -12,3 +12,16 @@ export {
   recordObservedFailure,
   recordVerifiedSolution,
 } from "./failure-learning.js";
+export {
+  evaluateRepeatFailureFixRound,
+  recordRepairAttempt,
+  deriveValidationFailurePair,
+} from "./repeat-failure-strategy.js";
+export type {
+  EvaluateRepeatFailureFixRoundInput,
+  RecordRepairAttemptInput,
+  RepeatFailureFixRoundAdvice,
+  RepeatFailureNextAction,
+  RepairAttemptRow,
+  StrategyStats,
+} from "./repeat-strategy-types.js";

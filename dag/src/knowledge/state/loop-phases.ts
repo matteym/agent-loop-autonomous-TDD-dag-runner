@@ -13,6 +13,8 @@ export const LOOP_EVENT_CHECKPOINT_PHASE: Record<LoopPhaseEvent, CheckpointPhase
   verification_started: "VERIFICATION_STARTED",
   verification_completed: "VERIFICATION_COMPLETED",
   commit_created: "COMMIT_CREATED",
+  repair_started: "REPAIR_STARTED",
+  repair_completed: "REPAIR_COMPLETED",
   node_archived: "NODE_COMPLETED",
   node_failed: "NODE_FAILED",
   run_completed: "RUN_COMPLETED",

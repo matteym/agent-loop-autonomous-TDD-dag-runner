@@ -72,6 +72,12 @@ function applyNodeEvent(node: NodeState, event: LoopPhaseEvent, now: string): vo
     case "commit_created":
       node.status = "committing";
       break;
+    case "repair_started":
+      node.status = "repairing";
+      break;
+    case "repair_completed":
+      node.status = "verifying";
+      break;
     case "node_archived":
       node.status = "completed";
       node.finished_at = now;

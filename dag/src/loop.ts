@@ -46,6 +46,10 @@ import { resolveAgentMemoryRoot } from "./knowledge/state/paths.js";
 import type { LoopPhaseEvent } from "./knowledge/state/types.js";
 import { buildNodeSendContext } from "./knowledge/context/build-node-send-context.js";
 import type { NodeSendContextResult } from "./knowledge/context/loop-context.js";
+import {
+  deriveValidationFailurePair,
+  evaluateRepeatFailureFixRound,
+} from "./knowledge/diagnostics/repeat-failure-strategy.js";
 import { initRunLog, log, nodeSeparator, phase } from "./run-log.js";
 import type { ProviderName } from "./cli.js";
 import type { Dag, Task, TestSpec } from "./types.js";
@@ -511,11 +515,33 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     let tests = validateNode(task.tests);
     for (let round = 0; !tests.ok && round < maxFixRounds; round += 1) {
       log("validation red, fix round " + (round + 1) + " for " + task.id);
+      const memoryRoot = resolveAgentMemoryRoot(repoRoot);
+      const strategyRoot = join(memoryRoot, "diagnostics");
+      const failurePair = deriveValidationFailurePair(tests.output);
+      const repeatAdvice = evaluateRepeatFailureFixRound({
+        storage_root: strategyRoot,
+        signature: failurePair.signature,
+        attempted_solution: failurePair.attempted_solution,
+        passed: false,
+      });
+      captureLoopPhase(dag, task, "repair_started", repeatAdvice.next_action, {
+        failure: {
+          type: "validation",
+          signature: failurePair.signature.slice(0, 120),
+        },
+      });
+      const strategyPrefix =
+        repeatAdvice.next_action === "strategy-change"
+          ? "STRATEGY CHANGE: The same failure signature and repair approach failed " +
+            repeatAdvice.stats.fail_count +
+            " times. Do not repeat the same fix. Inspect more, change approach, then fix. Do not git push.\n\n"
+          : "";
       await runAgentTaskWithContext(
         agent,
         dag,
         task,
-        "Validation failed for node " +
+        strategyPrefix +
+          "Validation failed for node " +
           task.id +
           ". Fix the root cause. Do not commit. Do not skip tests. Output:\n" +
           tests.output.slice(0, 8000),

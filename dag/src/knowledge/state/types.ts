@@ -117,6 +117,8 @@ export const LOOP_PHASE_EVENTS = [
   "verification_started",
   "verification_completed",
   "commit_created",
+  "repair_started",
+  "repair_completed",
   "node_archived",
   "node_failed",
   "run_completed",
