@@ -111,6 +111,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "memory-gate-invalidate",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: MemoryGate persist only if factual, useful later, has evidence, has scope. invalidate(id, reason) sets status invalidated and keeps the record. markStale(id) sets stale. search() default excludes stale and invalidated. Tests: gate drops candidate without evidence; invalidate hides from default search but get() still returns it. No cloud. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(memory): add memory gate and invalidation",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
