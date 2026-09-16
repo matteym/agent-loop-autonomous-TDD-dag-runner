@@ -31,6 +31,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "codebase-file-symbol-index",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Implement in dag/src/knowledge/codebase. Scan a fixture tree: files, imports, exports, symbols (exported functions/classes from ts/js). Query: where is symbol Y defined, which files import path X. Local filesystem only, no embeddings yet, no cloud. Tests use a temp directory fixture, not this whole repo. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(codebase): index files imports and symbols",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
