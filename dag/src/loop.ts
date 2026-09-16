@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -40,6 +41,8 @@ import { mergeOpenPullRequest, openOrReusePullRequest } from "./pr.js";
 import { createAgentHandle } from "./providers/create.js";
 import type { AgentHandle } from "./providers/types.js";
 import { resolveProvider } from "./providers/select.js";
+import { recordPhase } from "../knowledge/state/record-phase.js";
+import type { LoopPhaseEvent } from "../knowledge/state/types.js";
 import { initRunLog, log, nodeSeparator, phase } from "./run-log.js";
 import type { ProviderName } from "./cli.js";
 import type { Dag, Task, TestSpec } from "./types.js";
@@ -50,7 +53,38 @@ const maxRedAttempts = 2;
 let nodesOk = 0;
 let publishFailed = false;
 let activeDagPath = metadataDagPath;
+let activeRunId = "";
 const runStartedAt = Date.now();
+
+function gitBranch(): string {
+  return (runGit(["branch", "--show-current"]).stdout || "").trim();
+}
+
+function loopWorkspace(): { branch: string; commit: string } {
+  return { branch: gitBranch(), commit: gitHead() };
+}
+
+function captureLoopPhase(
+  dag: Dag,
+  task: Task | undefined,
+  event: LoopPhaseEvent,
+  nextAction: string,
+  extra?: Omit<Parameters<typeof recordPhase>[0], "run_id" | "dag_title" | "node_id" | "event" | "workspace" | "next_action" | "repo_root">
+): void {
+  if (!activeRunId) {
+    return;
+  }
+  recordPhase({
+    run_id: activeRunId,
+    dag_title: dag.title,
+    node_id: task?.id ?? "",
+    event,
+    workspace: loopWorkspace(),
+    next_action: nextAction,
+    repo_root: repoRoot,
+    ...extra,
+  });
+}
 
 function loadDag(dagPath: string): Dag {
   if (!existsSync(dagPath)) {
@@ -176,7 +210,8 @@ function recordFailure(taskId: string, output: string) {
   log("wrote " + failuresLogPath);
 }
 
-async function runTddRed(agent: AgentHandle, task: Task): Promise<void> {
+async function runTddRed(agent: AgentHandle, task: Task, dag: Dag): Promise<void> {
+  captureLoopPhase(dag, task, "red_started", "agent-red-send");
   phase("RED", task.id);
   await runAgentTask(
     agent,
@@ -362,6 +397,9 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   const dag = loadDag(activeDagPath);
   const state = loadState();
   mkdirSync(logsDir, { recursive: true });
+  activeRunId = randomUUID();
+  captureLoopPhase(dag, undefined, "run_started", "load-plan");
+  captureLoopPhase(dag, undefined, "plan_created", "start-first-node");
 
   await using agent = await createAgentHandle({
     provider: selected.provider,
@@ -382,8 +420,10 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     const nodeStarted = Date.now();
     log("start " + task.id);
     syncEnv();
+    captureLoopPhase(dag, task, "node_started", tddEnabled(task) ? "tdd-red" : "agent-green");
     if (tddEnabled(task)) {
-      await runTddRed(agent, task);
+      await runTddRed(agent, task, dag);
+      captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
       await runAgentTask(
         agent,
@@ -394,10 +434,12 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         task
       );
     } else {
+      captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
       await runAgentTask(agent, "DAG node " + task.id + ". " + task.prompt, task);
     }
 
+    captureLoopPhase(dag, task, "verification_started", "run-guard-and-tests");
     let tests = validateNode(task.tests);
     for (let round = 0; !tests.ok && round < maxFixRounds; round += 1) {
       log("validation red, fix round " + (round + 1) + " for " + task.id);
@@ -413,6 +455,10 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     }
     if (!tests.ok) {
       phase("FAIL", task.id);
+      captureLoopPhase(dag, task, "node_failed", "stop-run", {
+        status: "failed",
+        failure: { type: "validation", signature: "node-validation-failed" },
+      });
       recordFailure(task.id, tests.output);
       appendHistory({
         ts: new Date().toISOString(),
@@ -428,8 +474,15 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
       endSummary(dag);
       return 2;
     }
+    captureLoopPhase(dag, task, "verification_completed", "commit-or-fix", {
+      tests: { passed: Math.max(task.tests.length, 1), failed: 0 },
+    });
     if (!(await finishNodeCommit(agent, task))) {
       phase("FAIL", "commit " + task.id);
+      captureLoopPhase(dag, task, "node_failed", "stop-run", {
+        status: "failed",
+        failure: { type: "commit", signature: "node-commit-failed" },
+      });
       appendHistory({
         ts: new Date().toISOString(),
         dagFile: activeDagPath,
@@ -442,7 +495,9 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
       endSummary(dag);
       return 2;
     }
+    captureLoopPhase(dag, task, "commit_created", "archive");
     phase("ARCHIVE", task.id);
+    captureLoopPhase(dag, task, "node_archived", "next-node");
     archiveFinishedTask(dag, activeDagPath, task);
     if (!orchestratorCommit("chore(config): archive dag node " + task.id, true)) {
       log("archive written but chore commit failed for " + task.id);
@@ -466,6 +521,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
       publishNode(dag.title);
     }
   }
+  captureLoopPhase(dag, undefined, "run_completed", "done");
   endSummary(dag);
   if (opts.push !== false && !publishFailed && nodesOk > 0) {
     phase("MERGE", "main");

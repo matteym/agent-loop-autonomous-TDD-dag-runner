@@ -103,3 +103,43 @@ export type ResumeFromCheckpointInput = {
   repo_root?: string;
   memory_root?: string;
 };
+
+/** Orchestrator loop hook events mapped to checkpoint phases in recordPhase. */
+export const LOOP_PHASE_EVENTS = [
+  "run_started",
+  "plan_created",
+  "node_started",
+  "red_started",
+  "red_completed",
+  "green_started",
+  "green_completed",
+  "verification_started",
+  "verification_completed",
+  "commit_created",
+  "node_archived",
+  "node_failed",
+  "run_completed",
+] as const;
+
+export type LoopPhaseEvent = (typeof LOOP_PHASE_EVENTS)[number];
+
+export type RecordPhaseInput = {
+  run_id: string;
+  dag_title: string;
+  node_id: string;
+  event: LoopPhaseEvent;
+  workspace: CheckpointWorkspace;
+  next_action: string;
+  memory_root?: string;
+  repo_root?: string;
+  context?: CheckpointContext;
+  tests?: CheckpointTests;
+  status?: CheckpointStatus;
+  failure?: CheckpointFailure;
+};
+
+export type RecordPhaseResult = {
+  checkpoint: CheckpointRecord;
+  run_state: RunState;
+  node_state?: NodeState;
+};
