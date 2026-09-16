@@ -1,7 +1,7 @@
 import { EVIDENCE_REQUIRED_TYPES } from "./types.js";
 import type { MemoryEvidence, NewMemoryEntry } from "./types.js";
 
-function hasValidEvidence(evidence: MemoryEvidence | undefined): boolean {
+export function hasValidEvidence(evidence: MemoryEvidence | undefined): boolean {
   if (!evidence) {
     return false;
   }

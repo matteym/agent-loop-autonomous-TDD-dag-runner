@@ -29,7 +29,7 @@ function isHiddenFromSearch(entry: MemoryEntry): boolean {
   if (entry.invalidated) {
     return true;
   }
-  return entry.status === "invalidated";
+  return entry.status === "invalidated" || entry.status === "stale";
 }
 
 function buildEntry(entry: NewMemoryEntry): MemoryEntry {

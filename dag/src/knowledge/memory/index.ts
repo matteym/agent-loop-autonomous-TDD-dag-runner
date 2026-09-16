@@ -15,3 +15,5 @@ export {
 } from "./types.js";
 export { projectMemoryLogPath, resolveProjectMemoryRoot } from "./paths.js";
 export { MemoryStore } from "./store.js";
+export { MemoryGate } from "./gate.js";
+export { assertGateAllowsPersist } from "./gate-check.js";
