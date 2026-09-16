@@ -50,22 +50,6 @@
         }
       ],
       "allowEmptyCommit": false
-    },
-    {
-      "id": "benchmarks-and-trace",
-      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/diagnostics: local benchmark fixtures: questions like where is auth, which tests protect Y, what failure hit X. Compare baseline (filename substring) vs retrieval+memory; report precision-like hit rate on fixtures (not LLM-as-judge). Traceability record: intent, run_id, node_id, memory_ids, files, tests, commit sha — persist JSONL so a chain can be rebuilt after restart. Split run memory vs project memory: only MemoryGate-verified entries copy to project store at node end. No UI. Tests: benchmark scores retrieval above baseline on the fixture; trace round-trips; run-only notes do not enter project store. Use env for URLs, never hardcode, never commit .env.",
-      "commit": "feat(diagnostics): benchmark retrieval and trace runs",
-      "tests": [
-        {
-          "cwd": "dag/src/knowledge",
-          "cmd": "yarn",
-          "args": [
-            "test"
-          ],
-          "optionalCwd": true
-        }
-      ],
-      "allowEmptyCommit": false
     }
   ]
 }
