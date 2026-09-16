@@ -143,6 +143,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "retrieval-git-deps",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. Extend retrieval in dag/src/knowledge/ with dependency-graph neighbors from the codebase index and recent git commits for matched files. Still no embeddings. Tests: file A imports B, query A also retrieves B; git subject for A appears in hits. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(retrieval): add git and dependency hits",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
