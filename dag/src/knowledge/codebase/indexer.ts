@@ -1,13 +1,19 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type {
   CodebaseIndex,
   CodebaseIndexSnapshot,
   IndexedFile,
+  PackageDependencies,
   SymbolDefinition,
 } from "./types.js";
 
 const SOURCE_EXT = /\.(ts|js)$/;
+const TEST_FILE_RE = /\.(test|spec)\.(ts|js)$/;
+
+function isTestFile(relPath: string): boolean {
+  return TEST_FILE_RE.test(relPath);
+}
 
 const IMPORT_FROM_RE =
   /import\s+(?:type\s+)?(?:[\w*{}\s,$]+\s+from\s+|)(["'])([^"']+)\1/g;
@@ -79,13 +85,54 @@ function resolveImport(fromFile: string, spec: string): string {
   return normalizeModulePath(joined);
 }
 
+function colocatedTestPaths(modulePath: string): string[] {
+  const normalized = modulePath.replace(/\\/g, "/");
+  const dir = path.dirname(normalized);
+  const base = path.basename(normalized).replace(/\.(ts|js)$/, "");
+  const prefix = dir === "." ? base : `${dir}/${base}`;
+  return [`${prefix}.test.ts`, `${prefix}.test.js`, `${prefix}.spec.ts`, `${prefix}.spec.js`];
+}
+
+type PackageJson = {
+  dependencies?: PackageDependencies;
+  devDependencies?: PackageDependencies;
+};
+
+function readPackageJson(root: string, relPkgPath: string): PackageJson | undefined {
+  const full = path.join(root, relPkgPath);
+  if (!existsSync(full)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(full, "utf8")) as PackageJson;
+}
+
+function nearestPackageJsonRel(root: string, filePath: string): string | undefined {
+  let dir = path.dirname(filePath.replace(/\\/g, "/"));
+  while (dir !== "." && !dir.endsWith("..")) {
+    const candidate = dir === "" ? "package.json" : `${dir}/package.json`;
+    if (existsSync(path.join(root, candidate))) {
+      return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      break;
+    }
+    dir = parent;
+  }
+  if (existsSync(path.join(root, "package.json"))) {
+    return "package.json";
+  }
+  return undefined;
+}
+
 function buildSnapshot(rootPath: string): CodebaseIndexSnapshot {
   const root = path.resolve(rootPath);
   const relPaths = listSourceFiles(root);
+  const test_files = relPaths.filter(isTestFile).sort();
   const files = relPaths.map((rel) =>
     parseSourceFile(rel, readFileSync(path.join(root, rel), "utf8")),
   );
-  return { root, files };
+  return { root, files, test_files };
 }
 
 /** Scan a local tree and build a file/import/symbol index. */
@@ -100,6 +147,9 @@ export function buildCodebaseIndex(rootPath: string): CodebaseIndex {
       }
     }
   }
+
+  const fileByPath = new Map(snapshot.files.map((file) => [file.path, file]));
+  const testFileSet = new Set(snapshot.test_files);
 
   return {
     snapshot,
@@ -118,6 +168,47 @@ export function buildCodebaseIndex(rootPath: string): CodebaseIndex {
         }
       }
       return importers;
+    },
+    findTestsCovering(modulePath: string): string[] {
+      const needle = normalizeModulePath(modulePath);
+      const covering = new Set<string>();
+
+      for (const candidate of colocatedTestPaths(modulePath)) {
+        if (testFileSet.has(candidate)) {
+          covering.add(candidate);
+        }
+      }
+
+      for (const testPath of snapshot.test_files) {
+        const indexed = fileByPath.get(testPath);
+        if (!indexed) {
+          continue;
+        }
+        for (const spec of indexed.imports) {
+          if (resolveImport(testPath, spec) === needle) {
+            covering.add(testPath);
+            break;
+          }
+        }
+      }
+
+      return [...covering].sort();
+    },
+    findPackageDependenciesForFile(filePath: string): PackageDependencies {
+      const rel = filePath.replace(/\\/g, "/");
+      const pkgRel = nearestPackageJsonRel(snapshot.root, rel);
+      if (!pkgRel) {
+        return {};
+      }
+      const pkg = readPackageJson(snapshot.root, pkgRel);
+      if (!pkg) {
+        return {};
+      }
+      const deps = { ...(pkg.dependencies ?? {}) };
+      if (isTestFile(rel)) {
+        Object.assign(deps, pkg.devDependencies ?? {});
+      }
+      return deps;
     },
   };
 }

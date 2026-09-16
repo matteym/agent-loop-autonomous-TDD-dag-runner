@@ -2,6 +2,7 @@ export type {
   CodebaseIndex,
   CodebaseIndexSnapshot,
   IndexedFile,
+  PackageDependencies,
   SymbolDefinition,
   SymbolKind,
 } from "./types.js";
