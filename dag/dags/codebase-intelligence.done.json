@@ -63,6 +63,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "codebase-git-index",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/codebase: for a path, collect recent git log subjects and hashes via git log (local repo). Query: recent commits touching this file. Do not dump full git history to a LLM. Tests: init a temp git repo, commit a file, index returns that subject. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(codebase): index recent git history for paths",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }
