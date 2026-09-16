@@ -79,6 +79,22 @@
         }
       ],
       "allowEmptyCommit": false
+    },
+    {
+      "id": "memory-store-jsonl",
+      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: MemoryStore independent of any LLM provider: add, search, get, update, invalidate. Persist as local JSONL under .agent-memory/project (no cloud vector DB). search by substring in title/content. Tests: add, get, search, update, invalidate. Use env for URLs, never hardcode, never commit .env.",
+      "commit": "feat(memory): add local jsonl memory store",
+      "tests": [
+        {
+          "cwd": "dag/src/knowledge",
+          "cmd": "yarn",
+          "args": [
+            "test"
+          ],
+          "optionalCwd": true
+        }
+      ],
+      "allowEmptyCommit": false
     }
   ]
 }

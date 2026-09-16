@@ -52,22 +52,6 @@
       "allowEmptyCommit": false
     },
     {
-      "id": "memory-store-jsonl",
-      "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: MemoryStore independent of any LLM provider: add, search, get, update, invalidate. Persist as local JSONL under .agent-memory/project (no cloud vector DB). search by substring in title/content. Tests: add, get, search, update, invalidate. Use env for URLs, never hardcode, never commit .env.",
-      "commit": "feat(memory): add local jsonl memory store",
-      "tests": [
-        {
-          "cwd": "dag/src/knowledge",
-          "cmd": "yarn",
-          "args": [
-            "test"
-          ],
-          "optionalCwd": true
-        }
-      ],
-      "allowEmptyCommit": false
-    },
-    {
       "id": "memory-types-evidence",
       "prompt": "TypeScript vitest. Package root is dag/src/knowledge/ relative to the repository root. This node's tests.cwd is dag/src/knowledge. Do NOT create a top-level src/ directory at the repository root. Do NOT write knowledge files into dag/src engine modules. In dag/src/knowledge/memory: typed entries FACT DECISION CONVENTION ARCHITECTURE FAILURE SOLUTION LESSON INVARIANT TEST_INSIGHT DEPENDENCY. Required fields: id, type, title, content, scope files/modules/symbols, evidence run_id/node_id/tests, confidence 0-1, created_at, last_verified_at, status candidate|verified|stale|invalidated. Reject add() without evidence for FACT/DECISION/ARCHITECTURE (LLM-only prose must not become verified). Tests cover reject-without-evidence and status values. Use env for URLs, never hardcode, never commit .env.",
       "commit": "feat(memory): require types evidence and status",
