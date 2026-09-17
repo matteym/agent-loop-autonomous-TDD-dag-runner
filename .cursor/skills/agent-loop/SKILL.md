@@ -18,7 +18,7 @@ Operator manual: `dag/README.md`. Default: clone this engine inside a product gi
 | Actor | Owns | Never |
 |---|---|---|
 | Agent (`send`) | READ PLAN INSPECT IMPLEMENT, COMMIT NOW with exact DAG `commit` | `git push`, `--no-verify`, `terraform apply` / `destroy`, edit `.env`, write `metadata/state.json`, edit `metadata/task.json` / `*.done.json` |
-| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, revert; `git push` at init; after each node `git push` + `gh pr create` (reuse if the PR exists) unless `--no-push` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
+| Orchestrator (`dag/run-dag-loop.ts`) | TEST, GUARD, keep `.github/workflows/ci.yml` (written at init; skip missing languages), COMMIT NOW send, verify/fallback commit, archive to sibling `*.done.json`, history line, NEXT, 5 fix rounds, PAUSE (`still continue ? o/n`) instead of dying, revert only on `n` after validation fail; `git push` at init; after each node `git push` + `gh pr create` (reuse if the PR exists) unless `--no-push` | cloud Agent VM, live OAuth, EAS, `terraform apply` |
 
 Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git, secrets, apply**.
 
@@ -41,20 +41,20 @@ Ticket prompt in the loaded DAG JSON wins on **scope**. This file wins on **git,
 
 Do not run extra SDK roundtrips for lint/commit. Orchestrator owns TEST, GUARD, COMMIT NOW.
 
-`run.wait()` is `"finished" | "error" | "cancelled"`. Only `"finished"` continues. There is no `"success"`.
+`run.wait()` is `"finished" | "error" | "cancelled"`. Only `"finished"` continues without a prompt. On `error` / `cancelled` the orchestrator **PAUSE**s (`still continue ? o/n`): `o` retries the send once, then skips the node if still bad; `n` records failed and exits. There is no `"success"`.
 
 No tests: one send, then GUARD + COMMIT NOW (`allowEmptyCommit` if needed). With tests, TDD:
 
 1. **RED** — failing tests only. Orchestrator runs `tests` from the DAG. Up to 2 more red sends if still green. Do not commit. For architecture / scaffold tasks: structural files (`package.json`, `tsconfig.json`, folder structures, and index stubs) are allowed in the RED phase if required for test execution, provided they contain no business logic.
 2. **GREEN** — minimal production code. Do not commit.
 3. **GUARD + TEST** — `node .cursor/hooks/guard-anti-patterns.mjs` then DAG tests. Up to 5 fix sends. Do not commit.
-4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Init already wrote `.github/workflows/ci.yml`; after node tests pass the orchestrator keeps that file current (do not invent a second workflow). Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored).
+4. **COMMIT NOW** — exact `commit` string, no `--no-verify`, no push. Orchestrator verifies `git log -1 --format=%s`, else fallback. Init already wrote `.github/workflows/ci.yml`; after node tests pass the orchestrator keeps that file current (do not invent a second workflow). Then move the task to sibling `*.done.json` and `chore(config): archive dag node <id>`. History line in `dag/history/nodes.jsonl` (gitignored; includes token usage when the provider returns it). Run log in `dag/logs/run-YYYYMMDD-HHmmss.log` (gitignored). Extra context per send is capped at 8000 characters; REPAIR injects one crash slice only. COMMIT NOW omits parent history.
 
-CLI (from `dag/`): `yarn run init --remote=https://github.com/OWNER/REPO.git` (or `--repo=`), `yarn task "intent"`, `yarn test`. Nested plugin: init writes one level up (`../`) on the parent git repo and gitignores this engine folder. Task flags only: `--dagfile=<path>`, `--push=false` / `--no-push`, `--provider=cursor|claude`. No `DAG_*` environment variables.
+CLI (from `dag/`): `yarn run init --remote=https://github.com/OWNER/REPO.git` (or `--repo=`), `yarn task "intent"`, `yarn test`. Nested plugin: init writes one level up (`../`) on the parent git repo and gitignores this engine folder. Task flags only: `--dagfile=<path>`, `--push=false` / `--no-push`, `--provider=cursor|claude`, `--unattended`, `--merge`. No `DAG_*` environment variables. SSH / background: `./run/mobile/run.sh` (tmux + `--unattended`) then `./run/mobile/run.sh status`. Desktop: `./run/desktop/run.sh`. Unattended (`!stdin.isTTY` or `--unattended`) never auto-accepts dangerous PAUSE as `o`, never merges `main` unless `--merge`.
 
 ## SECTION 4 — Failure
 
-Up to 5 fix sends. Then `dag/logs/failures.log`, `git reset --hard HEAD` (tracked only, no `git clean -fd`), history `status=failed`, exit non-zero. Node is not archived.
+Up to 5 fix sends. Then `dag/logs/failures.log`. On a TTY the orchestrator **PAUSE**s instead of dying: `n` → `git reset --hard HEAD` (tracked only, no `git clean -fd`), history `status=failed`, exit non-zero; `o` → do not revert, skip archive, NEXT node. Node is not archived on either answer. Unattended (`!process.stdin.isTTY` or `--unattended`) never auto-accepts `o`: validation red after 5 fixes / exhausted agent retry / commit-archive failure skip the node without revert; missing keys / missing DAG file log and exit 1 immediately. Agent protocol (this file) is otherwise unchanged.
 
 ## SECTION 5 — Zero bypass
 
@@ -81,4 +81,4 @@ Human gives only the intent: from `dag/`, `yarn task "add JWT login on the API"`
 
 ## ONBOARDING
 
-Clone this engine inside the product git clone (or copy `dag/` and `.cursor/` to the product root). `git config user.name` / `user.email` on the **product**. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`) writes compose, `.env` (gitignored), app tree, `.cursor`, `.github/workflows/ci.yml` on the product root, gitignores the nested engine folder, commits, and pushes `agent/init`. Then `yarn task "…"`. Expert: `yarn task --dagfile=<your.json>`. Do not paste secrets into the DAG JSON.
+Clone this engine inside the product git clone (or copy `dag/` and `.cursor/` to the product root). `git config user.name` / `user.email` on the **product**. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git` (never `yarn init`) writes compose, `.env` (gitignored), app tree, `.cursor`, `.github/workflows/ci.yml` on the product root, gitignores the nested engine folder, commits, and pushes `agent/init`. Then `yarn task "…"` or `./run/desktop/run.sh`. Expert: `yarn task --dagfile=<your.json>`. SSH/phone: `./run/mobile/run.sh` then `./run/mobile/run.sh status`. Do not paste secrets into the DAG JSON.

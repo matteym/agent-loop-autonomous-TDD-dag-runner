@@ -15,6 +15,8 @@ const ignoreLines = [
   "dag/history/*",
   "!dag/history/.gitkeep",
   "dag/logs/*.log",
+  "dag/logs/status",
+  "dag/logs/next-run.sh",
 ];
 
 function writeFile(path: string, contents: string) {

@@ -1,5 +1,8 @@
 import { Agent } from "@cursor/sdk";
 import { toCursorMcpServers, type ProjectMcp } from "../mcp.js";
+import { logMcpCall } from "../run-log.js";
+import { mcpCallsFromStreamEvent, uniqueMcpCalls, type McpCall } from "../stream-events.js";
+import { parseTokenUsage } from "../token-usage.js";
 import type { AgentHandle, AgentRun } from "./types.js";
 
 export async function createCursorAgent(opts: {
@@ -24,8 +27,13 @@ export async function createCursorAgent(opts: {
         id: run.id,
         async wait() {
           let text = "";
+          const mcpAcc: McpCall[] = [];
           if (run.supports("stream")) {
             for await (const event of run.stream()) {
+              for (const call of mcpCallsFromStreamEvent(event)) {
+                mcpAcc.push(call);
+                logMcpCall(call.server, call.tool);
+              }
               if (event.type === "assistant") {
                 for (const block of event.message.content) {
                   if (block.type === "text") {
@@ -44,6 +52,8 @@ export async function createCursorAgent(opts: {
             result: result.result,
             text,
             error: result.error ? { message: result.error.message } : undefined,
+            mcpCalls: uniqueMcpCalls(mcpAcc),
+            tokenUsage: parseTokenUsage(result),
           };
         },
       };

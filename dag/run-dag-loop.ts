@@ -33,6 +33,8 @@ async function main() {
     dagfile: cli.dagfile,
     push: cli.push,
     provider: cli.provider,
+    unattended: cli.unattended,
+    merge: cli.merge,
   });
   process.exit(code);
 }

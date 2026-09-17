@@ -14,6 +14,8 @@ describe("writeBootstrap", () => {
       const gitignore = readFileSync(join(dir, ".gitignore"), "utf8");
       expect(gitignore).toContain(line);
       expect(gitignore).toContain(".env");
+      expect(gitignore).toContain("dag/logs/status");
+      expect(gitignore).toContain("dag/logs/next-run.sh");
       expect(existsSync(join(dir, "src", ".gitkeep"))).toBe(true);
       expect(existsSync(join(dir, "src", "backend"))).toBe(false);
       expect(existsSync(join(dir, "src", "frontend"))).toBe(false);

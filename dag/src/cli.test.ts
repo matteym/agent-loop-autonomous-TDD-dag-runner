@@ -85,6 +85,22 @@ describe("parseArgv", () => {
     expect(parseArgv(["task", "--push=maybe"]).ok).toBe(false);
   });
 
+  it("parses --unattended and --merge", () => {
+    const parsed = parseArgv(["task", "--unattended", "--merge", "--dagfile=x.json"]);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) {
+      return;
+    }
+    expect(parsed.value.unattended).toBe(true);
+    expect(parsed.value.merge).toBe(true);
+    const plain = parseArgv(["task", "add login"]);
+    expect(plain.ok).toBe(true);
+    if (plain.ok) {
+      expect(plain.value.unattended).toBe(false);
+      expect(plain.value.merge).toBe(false);
+    }
+  });
+
   it("rejects unknown flags and providers", () => {
     expect(parseArgv(["task", "--allow-dirty"]).ok).toBe(false);
     expect(parseArgv(["task", "--provider=openai"]).ok).toBe(false);

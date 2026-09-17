@@ -25,6 +25,7 @@ export const metadataAgentIdPath = join(metadataDir, "agent-id");
 export const metadataInitDefaultsPath = join(metadataDir, "init.defaults.json");
 export const historyPath = join(historyDir, "nodes.jsonl");
 export const failuresLogPath = join(logsDir, "failures.log");
+export const statusPath = join(logsDir, "status");
 
 export function resolveDagFile(raw: string): string {
   if (!raw.trim()) {

@@ -11,5 +11,7 @@ dag/metadata/agent-id
 dag/history/*
 !dag/history/.gitkeep
 dag/logs/*.log
+dag/logs/status
+dag/logs/next-run.sh
 .agent-memory/
 ressources/

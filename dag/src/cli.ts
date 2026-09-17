@@ -11,6 +11,8 @@ export type ParsedCli = {
   remote?: string;
   push: boolean;
   provider?: ProviderName;
+  unattended: boolean;
+  merge: boolean;
 };
 
 export type ParseResult = { ok: true; value: ParsedCli } | { ok: false; error: string };
@@ -63,6 +65,8 @@ export function parseArgv(argv: string[]): ParseResult {
     "--repo",
     "--provider",
     "--push",
+    "--unattended",
+    "--merge",
   ]);
   for (const arg of rest) {
     if (!arg.startsWith("-")) {
@@ -129,6 +133,8 @@ export function parseArgv(argv: string[]): ParseResult {
       remote: readFlagValue(rest, "--remote") || readFlagValue(rest, "--repo"),
       push,
       provider,
+      unattended: rest.includes("--unattended"),
+      merge: rest.includes("--merge"),
     },
   };
 }

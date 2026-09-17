@@ -1,5 +1,8 @@
 import { query, type Options, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mcpToolAllowlist, toClaudeMcpServers, type ProjectMcp } from "../mcp.js";
+import { logMcpCall } from "../run-log.js";
+import { mcpCallsFromStreamEvent, uniqueMcpCalls, type McpCall } from "../stream-events.js";
+import { parseTokenUsage, unknownTokenUsage, type TokenUsage } from "../token-usage.js";
 import type { AgentHandle, AgentRun, WaitStatus } from "./types.js";
 
 function assistantText(msg: SDKMessage): string {
@@ -64,8 +67,14 @@ export async function createClaudeAgent(opts: {
           let status: WaitStatus = "finished";
           let resultText = "";
           let errMsg = "";
+          const mcpAcc: McpCall[] = [];
+          let tokenUsage: TokenUsage = unknownTokenUsage();
           try {
             for await (const msg of gen) {
+              for (const call of mcpCallsFromStreamEvent(msg)) {
+                mcpAcc.push(call);
+                logMcpCall(call.server, call.tool);
+              }
               const chunk = assistantText(msg);
               if (chunk) {
                 text += chunk;
@@ -74,6 +83,7 @@ export async function createClaudeAgent(opts: {
               if (msg.type !== "result") {
                 continue;
               }
+              tokenUsage = parseTokenUsage(msg);
               if (msg.subtype === "success" && !msg.is_error) {
                 status = "finished";
                 resultText = msg.result;
@@ -87,12 +97,19 @@ export async function createClaudeAgent(opts: {
             }
           } catch (err) {
             if (abort.signal.aborted) {
-              return { status: "cancelled", text };
+              return {
+                status: "cancelled",
+                text,
+                mcpCalls: uniqueMcpCalls(mcpAcc),
+                tokenUsage,
+              };
             }
             return {
               status: "error",
               text,
               error: { message: String(err) },
+              mcpCalls: uniqueMcpCalls(mcpAcc),
+              tokenUsage,
             };
           }
           return {
@@ -100,6 +117,8 @@ export async function createClaudeAgent(opts: {
             result: resultText,
             text,
             error: errMsg ? { message: errMsg } : undefined,
+            mcpCalls: uniqueMcpCalls(mcpAcc),
+            tokenUsage,
           };
         },
       };

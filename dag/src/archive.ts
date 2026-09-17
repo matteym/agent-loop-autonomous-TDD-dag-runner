@@ -8,6 +8,7 @@ import {
   metadataStatePath,
 } from "./paths.js";
 import type { Dag, Task } from "./types.js";
+import type { TokenUsage } from "./token-usage.js";
 
 function writeJson(filePath: string, value: unknown) {
   writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n");
@@ -40,6 +41,7 @@ export function appendHistory(entry: {
   sha: string;
   durationMs: number;
   status: "finished" | "failed";
+  tokens?: TokenUsage;
 }) {
   mkdirSync(historyDir, { recursive: true });
   appendFileSync(historyPath, JSON.stringify(entry) + "\n");

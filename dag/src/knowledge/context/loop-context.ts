@@ -9,6 +9,9 @@ export type NodeSendContextInput = {
 export type NodeSendContextResult = {
   /** Short briefing appended before repo briefing (not whole codebase). */
   context_briefing: string;
+  /** Knowledge briefing without similar-failure bullets (those go in similar_failures). */
+  knowledge_core: string;
+  similar_failures: string[];
   memory_ids: string[];
   context_files: string[];
   may_modify: boolean;
