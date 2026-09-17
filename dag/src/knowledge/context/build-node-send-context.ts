@@ -6,7 +6,7 @@ import { ContextSufficiencyGate } from "./sufficiency-gate.js";
 import type { AgentContext, ContextBuilderInput } from "./types.js";
 import type { NodeSendContextInput, NodeSendContextResult } from "./loop-context.js";
 
-const DEFAULT_BRIEFING_MAX_CHARS = 2000;
+const DEFAULT_BRIEFING_MAX_CHARS = 8000;
 const INSPECT_PREFIX =
   "INSPECT MORE: context sufficiency gate blocked code changes. Read listed files, tests, and memories before editing.\n\n";
 
@@ -81,7 +81,7 @@ function collectMemoryIds(input: NodeSendContextInput): string[] {
   return [...ids];
 }
 
-function formatContextBriefing(context: AgentContext): string {
+function formatKnowledgeCore(context: AgentContext): string {
   const lines: string[] = [
     "Retrieved context (truncated, not full repo):",
     `Objective: ${context.objective}`,
@@ -95,18 +95,6 @@ function formatContextBriefing(context: AgentContext): string {
   if (context.tests.length > 0) {
     lines.push(`Tests: ${context.tests.join(", ")}`);
   }
-  if (context.similar_failures.length > 0) {
-    lines.push("Similar failures:");
-    for (const line of context.similar_failures) {
-      lines.push(`- ${line}`);
-    }
-  }
-  if (context.solutions.length > 0) {
-    lines.push("Solutions:");
-    for (const line of context.solutions) {
-      lines.push(`- ${line}`);
-    }
-  }
   if (context.recent_git.length > 0) {
     lines.push("Recent git:");
     for (const line of context.recent_git) {
@@ -114,6 +102,27 @@ function formatContextBriefing(context: AgentContext): string {
     }
   }
   return truncateBriefing(lines.join("\n"));
+}
+
+function formatContextBriefing(context: AgentContext): string {
+  const core = formatKnowledgeCore(context);
+  const extra: string[] = [];
+  if (context.similar_failures.length > 0) {
+    extra.push("Similar failures:");
+    for (const line of context.similar_failures) {
+      extra.push(`- ${line}`);
+    }
+  }
+  if (context.solutions.length > 0) {
+    extra.push("Solutions:");
+    for (const line of context.solutions) {
+      extra.push(`- ${line}`);
+    }
+  }
+  if (!extra.length) {
+    return core;
+  }
+  return truncateBriefing(core + "\n" + extra.join("\n"));
 }
 
 export function buildNodeSendContext(input: NodeSendContextInput): NodeSendContextResult {
@@ -130,6 +139,8 @@ export function buildNodeSendContext(input: NodeSendContextInput): NodeSendConte
 
   return {
     context_briefing: formatContextBriefing(agentContext),
+    knowledge_core: formatKnowledgeCore(agentContext),
+    similar_failures: [...agentContext.similar_failures, ...agentContext.solutions],
     memory_ids,
     context_files: agentContext.files,
     may_modify,

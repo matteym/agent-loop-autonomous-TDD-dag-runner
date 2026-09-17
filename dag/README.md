@@ -44,7 +44,7 @@ yarn task --dagfile=path/to/your-dag.json --provider=cursor
 
 ## Provider
 
-Without `--provider`: both keys present → `cursor`. Else the key that exists. No key → EXIT 1.
+Without `--provider`: both keys present → `cursor`. Else the key that exists. No key → **PAUSE** (`still continue ? o/n`). Answering `n`, or answering `o` twice when the run still cannot start, exits 1.
 
 Keys from the environment, then `.env` (product root, engine root, `dag/`, `Server/`):
 
@@ -76,9 +76,9 @@ On an empty repo, `yarn task` does not replace init. Run `yarn run init --remote
 - Docker if a task adds a Compose service
 - A Cursor and/or Claude key (never logged)
 - `gh` authenticated (default push + PR; skip with `--no-push`)
-- Branch ≠ `main` / `master` (otherwise EXIT 1)
-- Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`)
-- `git config user.name` and `user.email` **on the product repo**. Without them, `yarn run init` and `yarn task` stop before commit.
+- Branch ≠ `main` / `master` (otherwise **PAUSE**; `o` continues this run but treats it as `--no-push` so origin `main` is never pushed)
+- Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`). A dirty tree **PAUSE**s; `o` continues anyway.
+- `git config user.name` and `user.email` **on the product repo**. Without them, `yarn run init` and `yarn task` **PAUSE** then still cannot start.
 
 Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse an **open** PR; a closed PR is ignored and a new one is opened). When the DAG finishes, merge that PR into `main` (`gh pr merge --merge`, or `--auto` if checks are still running). Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips push, PR, and merge.
 
@@ -135,9 +135,31 @@ Codebase intelligence (20 nodes, skip planner). Every node runs `yarn test` in `
 yarn task --dagfile=dags/codebase-intelligence.json
 ```
 
+## Live log
+
+Stderr (TTY colors) and `dag/logs/run-YYYYMMDD-HHmmss.log` share one format. Secrets are redacted. Phases are never mixed:
+
+| Tag | Meaning |
+|---|---|
+| `RUN` | header: provider, branch, model, DAG title, MCP server names (or `none`) |
+| `PLAN` `PREFLIGHT` `CONTEXT` `MCP` `RED` `GREEN` `GUARD` `TEST` `REPAIR` `COMMIT` `ARCHIVE` `PUSH` `PR` `MERGE` `PAUSE` | one block per orchestrator phase |
+| `STEP` | one short present-tense line per action (`running yarn test in dag/src/knowledge`) |
+| `TEST` | one line per command with `cwd` |
+| `TEST PASS` / `TEST FAIL` | outcome plus exit code or first failing assertion — never mixed in one blob |
+| `MCP CALL server/tool` | stream tool/MCP event (no payloads, no secrets). Skipped when the turn used no MCP |
+| `GREEN SUMMARY` | 3–8 bullets after every GREEN send (before GUARD): what the agent did, files from git porcelain or `unknown`, tests not yet re-run, MCP used or not, next phase. Never invented |
+| `PAUSE` | why the loop would have stopped, what would have happened, then `still continue ? o/n` |
+| `[TOKEN USAGE]` | after every `Agent.send`: Prompt / Completion / Total from the provider, or `unknown` (never estimated from character counts). Also stored on the history line |
+
+Extra context on each send (knowledge briefing + similar failures + parent history + one REPAIR crash slice) is capped at **8000 characters**. REPAIR uses a single crash source: live `tests.output`, else the last `failures.log` block for that node, else a `run-*.log` extract. Parent history is omitted on COMMIT NOW.
+
+Answers: `o` / `O` / `oui` / `y` / `yes` continue; `n` / `N` / `non` / `no` stop (write `failures.log`, revert tracked files only when validation failed, history `status=failed`, non-zero exit). If stdin is not a TTY (CI), the PAUSE reason is logged and treated as `o` so unattended runs do not hang.
+
+`o` on `main`/`master` continues without pushing that branch. `o` on a dirty tree continues. `o` after 5 red fix rounds does **not** revert; the node is recorded failed, skipped for archive, and the DAG goes to NEXT. Agent send `error`/`cancelled`: `o` retries once, then skips the node. Missing keys or missing DAG file still cannot run: PAUSE, `n` → exit 1; `o` prints that the run cannot start, asks once more, then exit 1.
+
 ## UI
 
-Init: COMPOSE, BOOTSTRAP, PLUGIN (if nested), CI, REMOTE, PUSH. Task: PLAN, RED, GREEN, UP (if the task changed Compose), GUARD, TEST, CI (keeps the same workflow file), COMMIT NOW, ARCHIVE, PUSH, PR, MERGE (into main when the DAG finishes), SKIP, FAIL.
+Init: COMPOSE, BOOTSTRAP, PLUGIN (if nested), CI, REMOTE, PUSH. Task: PLAN, PREFLIGHT, CONTEXT, MCP, RED, GREEN, GREEN SUMMARY, UP (if the task changed Compose), GUARD, TEST PASS/FAIL, REPAIR, COMMIT, ARCHIVE, PUSH, PR, MERGE, PAUSE, SKIP, FAIL.
 
 ## Forbidden (agent)
 

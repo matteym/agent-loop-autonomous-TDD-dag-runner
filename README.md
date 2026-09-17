@@ -55,7 +55,7 @@ yarn run init --remote=https://github.com/YOU/YOUR-REPO.git
 yarn task "Build a notes API with Express and yarn test"
 ```
 
-`yarn task` refuses `main` / `master` and a dirty working tree, except runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`) and operator-owned `.cursor/mcp.json`.
+`yarn task` **PAUSE**s on `main` / `master` and a dirty working tree (`still continue ? o/n`). Runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`) and operator-owned `.cursor/mcp.json` are ignored. `o` on `main` continues the run as `--no-push`. `n` stops.
 
 Stay local: `yarn task --no-push "…"`.
 
@@ -102,7 +102,7 @@ Default model for planned DAGs is `composer-2.5`. Each node:
 4. **COMMIT NOW** — exact `commit` string, no `--no-verify`
 5. Archive the node to a sibling `*.done.json`, then push + PR unless `--no-push`
 
-Up to 5 fix rounds, then revert tracked files (`git reset --hard HEAD`, no `git clean -fd`) and exit non-zero. The node is not archived.
+Up to 5 fix rounds, then **PAUSE**. `n` reverts tracked files (`git reset --hard HEAD`, no `git clean -fd`) and exits non-zero. `o` does not revert; the node is recorded failed, not archived, and the DAG continues with NEXT.
 
 After each node: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (policy `agent-replay`, never `--force`), then `git push -u origin HEAD` and `gh pr create` (reuse an **open** PR). When the DAG finishes, merge into `main`.
 
@@ -116,6 +116,7 @@ The runtime keeps a **local** knowledge layer under `dag/src/knowledge/`:
 - codebase index (files, symbols, imports, tests, git history)
 - evidence-based memory (facts, decisions, failures, solutions) behind a memory gate
 - hybrid retrieval and a context builder injected into each agent send
+- extra Agent.send payload (knowledge + similar failures + parent history + one crash slice) capped at 8000 characters; token usage logged per send and on `dag/history/nodes.jsonl` when the API returns it (`unknown` otherwise)
 - failure signatures and a stop on repeated failed repairs
 
 On-disk data lives in `.agent-memory/` (gitignored). SQLite/JSONL/filesystem/Git only — no cloud vector DB, no Atlas clone, no UI.
@@ -146,6 +147,26 @@ The loop does not install MCP servers. Put them in the product `.cursor/mcp.json
 ```
 
 Use `${ENV_NAME}` for secrets. Do not use MCP for `git push`, `terraform apply`, or production cloud mutation. Init never overwrites this file.
+
+---
+
+## Live log
+
+Stderr (TTY colors) and `dag/logs/run-*.log` use one visual language. Secrets are redacted.
+
+| Tag | Meaning |
+|---|---|
+| `RUN` | provider, branch, model, DAG title, MCP names (or `none`) |
+| `PLAN` `PREFLIGHT` `CONTEXT` `MCP` `RED` `GREEN` `GUARD` `TEST` `REPAIR` `COMMIT` `ARCHIVE` `PUSH` `PR` `MERGE` `PAUSE` | distinct phase blocks |
+| `STEP` | one present-tense orchestrator action |
+| `TEST PASS` / `TEST FAIL` | per-command result + short reason |
+| `MCP CALL server/tool` | stream MCP/tool event (no payloads). Omitted when unused |
+| `GREEN SUMMARY` | 3–8 bullets after GREEN, before GUARD; `unknown` if not known |
+| `PAUSE` | reason, what would have happened, `still continue ? o/n` |
+
+`o` / `oui` / `y` / `yes` continue; `n` / `non` / `no` stop. Non-TTY (CI) logs the PAUSE reason and treats it as `o` so the process does not hang. Missing keys or a missing DAG file still cannot start: after `n` or a second `o`, exit 1.
+
+The agent never `git push`, never `--no-verify`, never `terraform apply` / `destroy`.
 
 ---
 

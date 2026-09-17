@@ -1,21 +1,15 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { historyDir, logsDir } from "./paths.js";
+import {
+  formatNodeBanner,
+  formatRunHeader,
+  formatStep,
+  redactSecrets,
+  type UiPhase,
+} from "./runtime-ui.js";
 
-export type Phase =
-  | "RED"
-  | "GREEN"
-  | "UP"
-  | "CI"
-  | "GUARD"
-  | "TEST"
-  | "COMMIT NOW"
-  | "ARCHIVE"
-  | "PUSH"
-  | "PR"
-  | "MERGE"
-  | "SKIP"
-  | "FAIL";
+export type Phase = UiPhase | "COMMIT NOW";
 
 let runLogPath = "";
 
@@ -31,27 +25,17 @@ export function paint(code: string, text: string): string {
 }
 
 function phaseColor(phase: Phase): string {
-  if (phase === "FAIL" || phase === "RED") {
+  if (phase === "FAIL" || phase === "RED" || phase === "PAUSE") {
     return paint("31", phase);
   }
-  if (phase === "SKIP") {
+  if (phase === "SKIP" || phase === "REPAIR") {
     return paint("33", phase);
   }
   if (phase === "GREEN" || phase === "ARCHIVE") {
     return paint("32", phase);
   }
-  return paint("36", phase);
-}
-
-function redact(text: string): string {
-  return text
-    .replace(/CURSOR_API_KEY[=:\s]+\S+/gi, "CURSOR_API_KEY=***")
-    .replace(/CURSOR_SDK_API[=:\s]+\S+/gi, "CURSOR_SDK_API=***")
-    .replace(/ANTHROPIC_API_KEY[=:\s]+\S+/gi, "ANTHROPIC_API_KEY=***")
-    .replace(/CLAUDE_API_KEY[=:\s]+\S+/gi, "CLAUDE_API_KEY=***")
-    .replace(/JWT_SECRET[=:\s]+\S+/gi, "JWT_SECRET=***")
-    .replace(/Bearer\s+\S+/gi, "Bearer ***")
-    .replace(/refresh_token[=:\s]+\S+/gi, "refresh_token=***");
+  const label = phase === "COMMIT NOW" ? "COMMIT" : phase;
+  return paint("36", label);
 }
 
 function runStamp(d: Date): string {
@@ -68,13 +52,16 @@ function runStamp(d: Date): string {
 }
 
 export function initRunLog() {
+  if (runLogPath) {
+    return;
+  }
   mkdirSync(logsDir, { recursive: true });
   mkdirSync(historyDir, { recursive: true });
   runLogPath = join(logsDir, "run-" + runStamp(new Date()) + ".log");
 }
 
 export function log(message: string) {
-  const safe = redact(message);
+  const safe = redactSecrets(message);
   const stamped = new Date().toISOString() + " " + safe;
   process.stderr.write("[dag] " + safe + "\n");
   if (runLogPath) {
@@ -86,6 +73,34 @@ export function phase(name: Phase, detail: string) {
   log(phaseColor(name) + " " + detail);
 }
 
-export function nodeSeparator(id: string) {
-  log(paint("90", "──────── " + id + " ────────"));
+export function step(text: string) {
+  log(formatStep(text));
+}
+
+export function logRunHeader(input: {
+  provider: string;
+  branch: string;
+  model: string;
+  title: string;
+  mcpNames: string[];
+}) {
+  for (const line of formatRunHeader(input)) {
+    log(line);
+  }
+}
+
+export function logMcpCall(server: string, tool: string) {
+  phase("MCP", "CALL " + server + "/" + tool);
+}
+
+export function nodeSeparator(id: string, commit?: string) {
+  log(paint("90", formatNodeBanner(id, commit || "")));
+}
+
+export function currentRunLogPath(): string {
+  return runLogPath;
+}
+
+export function logTokenUsage(line: string) {
+  log(line);
 }

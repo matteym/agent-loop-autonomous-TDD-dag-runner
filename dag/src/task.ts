@@ -3,6 +3,7 @@ import { join, relative } from "node:path";
 import { recentGitLog } from "./git-run.js";
 import { hasCompose, isEmptyTarget } from "./init/detect.js";
 import { missingRemoteHint } from "./init/run.js";
+import { cannotStart, confirmContinue } from "./confirm-continue.js";
 import { runLoop } from "./loop.js";
 import {
   engineKnowledgeCwd,
@@ -26,6 +27,7 @@ import { productContextBlock } from "./product-context.js";
 import { normalizePlannedDag } from "./plan-normalize.js";
 import { createAgentHandle } from "./providers/create.js";
 import { resolveProvider } from "./providers/select.js";
+import { initRunLog, log, phase, step } from "./run-log.js";
 import type { ProviderName } from "./cli.js";
 import type { Dag } from "./types.js";
 
@@ -48,25 +50,6 @@ const skipWalkNames = new Set([
   "logs",
   "dag",
 ]);
-function colorEnabled(): boolean {
-  return Boolean(process.stderr.isTTY);
-}
-
-function paint(code: string, text: string): string {
-  if (!colorEnabled()) {
-    return text;
-  }
-  return "\u001b[" + code + "m" + text + "\u001b[0m";
-}
-
-function log(message: string) {
-  process.stderr.write("[task] " + message + "\n");
-}
-
-function phase(name: string, detail: string) {
-  const code = name === "FAIL" ? "31" : name === "PLAN" ? "36" : "32";
-  log(paint(code, name) + " " + detail);
-}
 
 function inferTest(dir: string): { cmd: string; args: string[] } | null {
   return inferTestCommand(dir);
@@ -129,7 +112,7 @@ function extractJson(text: string): unknown {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start < 0 || end <= start) {
-    throw new Error("planner output has no JSON object");
+    return null;
   }
   return JSON.parse(raw.slice(start, end + 1));
 }
@@ -286,10 +269,11 @@ async function plan(
   intent: string,
   packages: Pkg[],
   provider: ProviderName | undefined
-): Promise<Dag> {
+): Promise<Dag | null> {
   const selected = resolveProvider(provider);
   if (!selected.provider) {
-    throw new Error("set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
+    await cannotStart("set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
+    return null;
   }
   const model = defaultModel();
   await using agent = await createAgentHandle({
@@ -299,26 +283,66 @@ async function plan(
     cursorKey: selected.cursorKey,
     claudeKey: selected.claudeKey,
   });
-  const run = await agent.send(buildPlannerPrompt(intent, packages, model));
-  log("run.id=" + run.id);
-  const result = await run.wait();
-  log("run.status=" + result.status);
-  if (result.status !== "finished") {
-    throw new Error("planner " + result.status);
+  const prompt = buildPlannerPrompt(intent, packages, model);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    step(attempt === 0 ? "waiting for planner send" : "retrying planner send once");
+    try {
+      const run = await agent.send(prompt);
+      log("run.id=" + run.id);
+      const result = await run.wait();
+      log("run.status=" + result.status);
+      if (result.status !== "finished") {
+        const cont = await confirmContinue(
+          "planner " + result.status,
+          attempt === 0 ? "retry the planner once" : "exit without a DAG"
+        );
+        if (!cont) {
+          return null;
+        }
+        continue;
+      }
+      const blob = (result.text || "").trim() || result.result || "";
+      const parsed = extractJson(blob);
+      if (!parsed) {
+        const cont = await confirmContinue(
+          "planner output has no JSON object",
+          attempt === 0 ? "retry the planner once" : "exit without a DAG"
+        );
+        if (!cont) {
+          return null;
+        }
+        continue;
+      }
+      const normalized = normalizePlannedDag(
+        parsed as Dag,
+        packages.map((pkg) => pkg.rel)
+      );
+      const err = validateDag(normalized, packages);
+      if (err) {
+        const cont = await confirmContinue(
+          err,
+          attempt === 0 ? "retry the planner once" : "exit without a DAG"
+        );
+        if (!cont) {
+          return null;
+        }
+        continue;
+      }
+      normalized.model = model;
+      normalized.cwd = "..";
+      return normalized;
+    } catch (err) {
+      const cont = await confirmContinue(
+        String(err),
+        attempt === 0 ? "retry the planner once" : "exit without a DAG"
+      );
+      if (!cont) {
+        return null;
+      }
+    }
   }
-  const blob = (result.text || "").trim() || result.result || "";
-  const parsed = extractJson(blob) as Dag;
-  const normalized = normalizePlannedDag(
-    parsed,
-    packages.map((pkg) => pkg.rel)
-  );
-  const err = validateDag(normalized, packages);
-  if (err) {
-    throw new Error(err);
-  }
-  normalized.model = model;
-  normalized.cwd = "..";
-  return normalized;
+  await cannotStart("planner failed");
+  return null;
 }
 
 export async function runTask(opts: {
@@ -327,40 +351,37 @@ export async function runTask(opts: {
   push?: boolean;
   provider?: ProviderName;
 }): Promise<number> {
-  try {
-    if (opts.dagfile) {
-      if (opts.intent) {
-        log("intent ignored; using --dagfile");
-      }
-      return await runLoop({
-        dagPath: opts.dagfile,
-        provider: opts.provider,
-        push: opts.push,
-      });
+  initRunLog();
+  if (opts.dagfile) {
+    if (opts.intent) {
+      log("intent ignored; using --dagfile");
     }
-    const needsWizard = isEmptyTarget(repoRoot, pluginDirName ? [pluginDirName] : []) && !hasCompose(repoRoot);
-    if (needsWizard) {
-      log(missingRemoteHint);
-      return 1;
-    }
-    if (!opts.intent) {
-      log('usage: yarn task "your intent"');
-      return 1;
-    }
-    phase("PLAN", opts.intent);
-    const packages = listPackages();
-    const dag = await plan(opts.intent, packages, opts.provider);
-    mkdirSync(metadataDir, { recursive: true });
-    writeFileSync(metadataTaskPath, JSON.stringify(dag, null, 2) + "\n");
-    log("wrote " + metadataTaskPath + " nodes=" + dag.tasks.length);
-    return await runLoop({
-      dagPath: metadataTaskPath,
+    return runLoop({
+      dagPath: opts.dagfile,
       provider: opts.provider,
       push: opts.push,
     });
-  } catch (err) {
+  }
+  const needsWizard = isEmptyTarget(repoRoot, pluginDirName ? [pluginDirName] : []) && !hasCompose(repoRoot);
+  if (needsWizard) {
+    return cannotStart(missingRemoteHint);
+  }
+  if (!opts.intent) {
+    return cannotStart('usage: yarn task "your intent"');
+  }
+  phase("PLAN", opts.intent);
+  const packages = listPackages();
+  const dag = await plan(opts.intent, packages, opts.provider);
+  if (!dag) {
     phase("FAIL", "plan");
-    log(String(err));
     return 1;
   }
+  mkdirSync(metadataDir, { recursive: true });
+  writeFileSync(metadataTaskPath, JSON.stringify(dag, null, 2) + "\n");
+  log("wrote " + metadataTaskPath + " nodes=" + dag.tasks.length);
+  return runLoop({
+    dagPath: metadataTaskPath,
+    provider: opts.provider,
+    push: opts.push,
+  });
 }

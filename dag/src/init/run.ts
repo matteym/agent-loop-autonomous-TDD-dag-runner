@@ -13,6 +13,7 @@ import {
   pushHead,
   setOriginRemote,
 } from "./git.js";
+import { confirmContinue } from "../confirm-continue.js";
 import { log, phase } from "./log.js";
 import { pluginGitignoreLine } from "../layout.js";
 import {
@@ -67,6 +68,12 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
     return { status: "refused", reason: missingRemoteHint };
   }
   if (!hasGitIdentity(repoRoot)) {
+    const cont = await confirmContinue(missingGitIdentityHint, "refuse init");
+    if (!cont) {
+      return { status: "refused", reason: missingGitIdentityHint };
+    }
+    log("the run cannot start");
+    await confirmContinue(missingGitIdentityHint + " (still cannot start)", "refuse init");
     return { status: "refused", reason: missingGitIdentityHint };
   }
   if (repoHasServerSrc(repoRoot)) {
