@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { formatPause } from "./runtime-ui.js";
 import { log } from "./run-log.js";
+import { unattendedAction, type UnattendedGate } from "./unattended.js";
 
 export type ConfirmIo = {
   stdinIsTty: boolean;
@@ -42,6 +43,30 @@ let confirmIo: ConfirmIo = defaultConfirmIo();
 
 export function setConfirmIo(io: ConfirmIo | null): void {
   confirmIo = io ?? defaultConfirmIo();
+}
+
+export async function resolveOperatorGate(
+  unattended: boolean,
+  gate: UnattendedGate,
+  reason: string,
+  wouldHave: string
+): Promise<"continue" | "stop" | "skip-node"> {
+  if (unattended) {
+    const action = unattendedAction(gate);
+    log("UNATTENDED " + gate + ": " + reason);
+    if (action === "exit-1") {
+      return "stop";
+    }
+    if (action === "skip-node") {
+      return "skip-node";
+    }
+    return "continue";
+  }
+  const ok = await confirmContinue(reason, wouldHave);
+  if (!ok) {
+    return "stop";
+  }
+  return gate === "skip-node" ? "skip-node" : "continue";
 }
 
 export async function cannotStart(reason: string): Promise<number> {

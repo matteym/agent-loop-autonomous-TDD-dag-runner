@@ -53,6 +53,7 @@ export function isBlockedCommitPath(file: string): boolean {
     n.endsWith("failures.log") ||
     n.endsWith("metadata/agent-id") ||
     n.endsWith("history/nodes.jsonl") ||
+    /(?:^|\/)logs\/status$/.test(n) ||
     /(?:^|\/)logs\/.*\.log$/.test(n)
   );
 }
@@ -74,6 +75,7 @@ export function orchestratorCommit(message: string, allowEmpty: boolean | undefi
     "HEAD",
     "--",
     "dag/logs/failures.log",
+    "dag/logs/status",
     "dag/metadata/agent-id",
     "dag/history/nodes.jsonl",
     ".cursor/mcp.json",

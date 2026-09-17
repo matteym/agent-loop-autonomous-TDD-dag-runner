@@ -14,6 +14,7 @@ import {
   metadataTaskPath,
   repoRoot,
   resolveDagFile,
+  statusPath,
 } from "./paths.js";
 
 describe("paths", () => {
@@ -26,6 +27,7 @@ describe("paths", () => {
     expect(metadataStatePath.replace(/\\/g, "/")).toMatch(/metadata\/state\.json$/);
     expect(metadataAgentIdPath.replace(/\\/g, "/")).toMatch(/metadata\/agent-id$/);
     expect(historyPath.replace(/\\/g, "/")).toMatch(/history\/nodes\.jsonl$/);
+    expect(statusPath.replace(/\\/g, "/")).toMatch(/logs\/status$/);
   });
 
   it("resolves dagfile relative to dagDir", () => {

@@ -38,6 +38,7 @@ describe("isBlockedCommitPath", () => {
     expect(isBlockedCommitPath("src/backend/.env")).toBe(true);
     expect(isBlockedCommitPath("app-storage-service-account-key.json")).toBe(true);
     expect(isBlockedCommitPath("dag/logs/failures.log")).toBe(true);
+    expect(isBlockedCommitPath("dag/logs/status")).toBe(true);
   });
 
   it("allows product source and generated ci", () => {

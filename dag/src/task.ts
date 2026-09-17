@@ -4,6 +4,7 @@ import { recentGitLog } from "./git-run.js";
 import { hasCompose, isEmptyTarget } from "./init/detect.js";
 import { missingRemoteHint } from "./init/run.js";
 import { cannotStart, confirmContinue } from "./confirm-continue.js";
+import { isUnattendedMode } from "./unattended.js";
 import { runLoop } from "./loop.js";
 import {
   engineKnowledgeCwd,
@@ -268,10 +269,15 @@ export function buildPlannerPrompt(intent: string, packages: Pkg[], model: strin
 async function plan(
   intent: string,
   packages: Pkg[],
-  provider: ProviderName | undefined
+  provider: ProviderName | undefined,
+  unattended?: boolean
 ): Promise<Dag | null> {
   const selected = resolveProvider(provider);
   if (!selected.provider) {
+    if (isUnattendedMode({ stdinIsTty: Boolean(process.stdin.isTTY), flag: unattended })) {
+      log("UNATTENDED fatal-start: set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
+      return null;
+    }
     await cannotStart("set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
     return null;
   }
@@ -350,6 +356,8 @@ export async function runTask(opts: {
   dagfile?: string;
   push?: boolean;
   provider?: ProviderName;
+  unattended?: boolean;
+  merge?: boolean;
 }): Promise<number> {
   initRunLog();
   if (opts.dagfile) {
@@ -360,18 +368,28 @@ export async function runTask(opts: {
       dagPath: opts.dagfile,
       provider: opts.provider,
       push: opts.push,
+      unattended: opts.unattended,
+      merge: opts.merge,
     });
   }
   const needsWizard = isEmptyTarget(repoRoot, pluginDirName ? [pluginDirName] : []) && !hasCompose(repoRoot);
   if (needsWizard) {
+    if (isUnattendedMode({ stdinIsTty: Boolean(process.stdin.isTTY), flag: opts.unattended })) {
+      log("UNATTENDED fatal-start: " + missingRemoteHint);
+      return 1;
+    }
     return cannotStart(missingRemoteHint);
   }
   if (!opts.intent) {
+    if (isUnattendedMode({ stdinIsTty: Boolean(process.stdin.isTTY), flag: opts.unattended })) {
+      log('UNATTENDED fatal-start: usage: yarn task "your intent"');
+      return 1;
+    }
     return cannotStart('usage: yarn task "your intent"');
   }
   phase("PLAN", opts.intent);
   const packages = listPackages();
-  const dag = await plan(opts.intent, packages, opts.provider);
+  const dag = await plan(opts.intent, packages, opts.provider, opts.unattended);
   if (!dag) {
     phase("FAIL", "plan");
     return 1;
@@ -383,5 +401,7 @@ export async function runTask(opts: {
     dagPath: metadataTaskPath,
     provider: opts.provider,
     push: opts.push,
+    unattended: opts.unattended,
+    merge: opts.merge,
   });
 }

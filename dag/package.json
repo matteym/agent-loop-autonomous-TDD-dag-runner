@@ -8,6 +8,8 @@
   "scripts": {
     "init": "tsx run-dag-loop.ts init",
     "task": "tsx run-dag-loop.ts task",
+    "mobile": "bash ./run/mobile/run.sh",
+    "desktop": "bash ./run/desktop/run.sh",
     "test": "vitest run"
   },
   "dependencies": {

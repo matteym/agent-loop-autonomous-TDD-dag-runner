@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmContinue, parseContinueAnswer } from "./confirm-continue.js";
+import { confirmContinue, parseContinueAnswer, resolveOperatorGate } from "./confirm-continue.js";
 
 describe("parseContinueAnswer", () => {
   it("accepts o/oui/y/yes as continue", () => {
@@ -54,5 +54,21 @@ describe("cannotStart", () => {
     const { cannotStart } = await import("./confirm-continue.js");
     const code = await cannotStart("missing dagfile");
     expect(code).toBe(1);
+  });
+});
+
+describe("resolveOperatorGate", () => {
+  it("does not auto-accept dangerous skip as halt in unattended", async () => {
+    const skipped = await resolveOperatorGate(
+      true,
+      "skip-node",
+      "validation still red",
+      "revert and stop"
+    );
+    expect(skipped).toBe("skip-node");
+    const fatal = await resolveOperatorGate(true, "fatal-start", "missing keys", "exit 1");
+    expect(fatal).toBe("stop");
+    const soft = await resolveOperatorGate(true, "preflight-soft", "dirty tree", "exit 1");
+    expect(soft).toBe("continue");
   });
 });

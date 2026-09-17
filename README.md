@@ -55,11 +55,13 @@ yarn run init --remote=https://github.com/YOU/YOUR-REPO.git
 yarn task "Build a notes API with Express and yarn test"
 ```
 
-`yarn task` **PAUSE**s on `main` / `master` and a dirty working tree (`still continue ? o/n`). Runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`) and operator-owned `.cursor/mcp.json` are ignored. `o` on `main` continues the run as `--no-push`. `n` stops.
+`yarn task` **PAUSE**s on `main` / `master` and a dirty working tree (`still continue ? o/n`). Runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`, `dag/logs/status`) and operator-owned `.cursor/mcp.json` are ignored. `o` on `main` continues the run as `--no-push`. `n` stops. Unattended / non-TTY never auto-merges `main` unless `--merge`.
 
 Stay local: `yarn task --no-push "…"`.
 
 Skip the planner: `yarn task --dagfile=path/to/your.json`.
+
+SSH / phone (no daemon): from `dag/`, `./run/mobile/run.sh` then `./run/mobile/run.sh status`. Desktop: `./run/desktop/run.sh` (Windows: `powershell -File ./run/desktop/run.ps1`).
 
 Copy only `dag/` + `.cursor/` into a product root if you want the engine **without** nesting this GitHub history. Default is to clone the whole engine inside the product repo: init targets `../` and gitignores the plugin folder. Nested engine `.git` is parked as `.git.engine` so git from `dag/` is the **product** repo.
 
@@ -91,6 +93,8 @@ From `dag/`:
 | `--dagfile=<path>` | skip the planner; run that JSON (`intent` is ignored) |
 | `--push=false` / `--no-push` | no push, PR, or merge |
 | `--provider=cursor\|claude` | force the runtime; otherwise Cursor if both keys exist |
+| `--unattended` | force safe non-interactive gates (also auto when stdin is not a TTY) |
+| `--merge` | unattended: allow merge into `main` (off by default) |
 
 No `DAG_*` environment variables. Keys are read from the environment, then `.env` at the product root, engine root, `dag/`, or `Server/`.
 
@@ -104,7 +108,7 @@ Default model for planned DAGs is `composer-2.5`. Each node:
 
 Up to 5 fix rounds, then **PAUSE**. `n` reverts tracked files (`git reset --hard HEAD`, no `git clean -fd`) and exits non-zero. `o` does not revert; the node is recorded failed, not archived, and the DAG continues with NEXT.
 
-After each node: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (policy `agent-replay`, never `--force`), then `git push -u origin HEAD` and `gh pr create` (reuse an **open** PR). When the DAG finishes, merge into `main`.
+After each node: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (policy `agent-replay`, never `--force`), then `git push -u origin HEAD` and `gh pr create` (reuse an **open** PR). When the DAG finishes on a TTY, merge into `main`. Unattended skips that merge unless `--merge`.
 
 ---
 
@@ -164,7 +168,7 @@ Stderr (TTY colors) and `dag/logs/run-*.log` use one visual language. Secrets ar
 | `GREEN SUMMARY` | 3–8 bullets after GREEN, before GUARD; `unknown` if not known |
 | `PAUSE` | reason, what would have happened, `still continue ? o/n` |
 
-`o` / `oui` / `y` / `yes` continue; `n` / `non` / `no` stop. Non-TTY (CI) logs the PAUSE reason and treats it as `o` so the process does not hang. Missing keys or a missing DAG file still cannot start: after `n` or a second `o`, exit 1.
+`o` / `oui` / `y` / `yes` continue; `n` / `non` / `no` stop. Unattended (`!stdin.isTTY` or `--unattended`) does not auto-accept dangerous PAUSE as `o`: skip the node instead. Missing keys or a missing DAG file exit 1 immediately. Phone status: `tail -f dag/logs/status`.
 
 The agent never `git push`, never `--no-verify`, never `terraform apply` / `destroy`.
 

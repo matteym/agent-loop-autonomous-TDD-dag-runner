@@ -21,6 +21,8 @@ yarn test
 |---|---|
 | `yarn run init --remote=<github-url>` | required: bootstrap + `.github/workflows/ci.yml` + push `agent/*` |
 | `yarn task "…"` | intent → plan (max 20 features) → TDD loop |
+| `yarn mobile` / `./run/mobile/run.sh` | SSH/phone launcher (tmux, unattended, per-run flags) |
+| `yarn desktop` / `./run/desktop/run.sh` | desktop launcher (same flags, current terminal) |
 | `yarn test` | engine unit tests (`vitest run`) |
 
 `yarn tsc --noEmit` typechecks the engine.
@@ -32,6 +34,8 @@ yarn test
 | `--dagfile=<path>` | skip the planner and run that JSON |
 | `--push=false` / `--no-push` | stay local (default is push + PR after every node) |
 | `--provider=cursor\|claude` | force the runtime; otherwise auto-detect |
+| `--unattended` | force unattended gates even on a TTY (also auto when stdin is not a TTY) |
+| `--merge` | allow merge into `main` in unattended mode (off by default when unattended) |
 
 `--repo=` is an alias for `--remote=`. Init without a GitHub URL is refused.
 
@@ -41,6 +45,45 @@ yarn task --dagfile=path/to/your-dag.json --provider=cursor
 ```
 
 `--dagfile` also accepts `--dagfile path`. Intent is ignored when `--dagfile` is set.
+
+## SSH / mobile / non-TTY
+
+Disconnecting SSH kills the process unless it runs inside a multiplexer. There is no daemon, systemd unit, or external bot.
+
+From `dag/`:
+
+```bash
+# telephone / SSH (tmux + unattended + questions push/PR/merge/provider)
+./run/mobile/run.sh
+./run/mobile/run.sh "Add JWT login on the API"
+./run/mobile/run.sh status          # tail logs/status (ecran telephone)
+./run/mobile/run.sh attach          # reprendre tmux
+
+# ordinateur (meme questions, yarn task dans ce terminal)
+./run/desktop/run.sh
+./run/desktop/run.sh "Add JWT login on the API"
+# Windows PowerShell :
+powershell -File ./run/desktop/run.ps1
+```
+
+`yarn mobile` / `yarn desktop` are aliases. Each run asks: **push + PR**, **merge into main**, **provider**, optional **--dagfile**. Mobile always adds `--unattended` (never auto-merge unless you answered merge `o`). The prompt is passed to `yarn task "…"`, which runs the planner — do not hand-write a temp DAG JSON.
+
+Unattended mode is on automatically when stdin is not a TTY (`yarn task < /dev/null`, CI, many mobile SSH clients) or when you pass `--unattended`. In that mode the loop does **not** treat PAUSE as `o`:
+
+- missing keys / missing DAG file: log and exit 1 immediately
+- validation still red after 5 fixes: skip the node (no archive, no `git reset`), continue
+- agent `error` / `cancelled`: retry once, then skip the node
+- commit or archive failure: skip the node; exit 0 if at least one node succeeded
+- push + PR still run (unless `--no-push`); **no** `git merge` into `main` unless `--merge`
+
+Watch a one-page status file (overwritten each phase, gitignored), not the verbose `run-*.log`:
+
+```bash
+./run/mobile/run.sh status
+# equivalent: tail -f dag/logs/status
+```
+
+Keep a TTY if you want interactive `still continue ? o/n`.
 
 ## Provider
 
@@ -77,10 +120,10 @@ On an empty repo, `yarn task` does not replace init. Run `yarn run init --remote
 - A Cursor and/or Claude key (never logged)
 - `gh` authenticated (default push + PR; skip with `--no-push`)
 - Branch ≠ `main` / `master` (otherwise **PAUSE**; `o` continues this run but treats it as `--no-push` so origin `main` is never pushed)
-- Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`). A dirty tree **PAUSE**s; `o` continues anyway.
+- Clean working tree except runtime artefacts (`metadata/state.json`, `task.json`, `*.done.json`, `agent-id`, `history/`, `logs/*.log`, `logs/status`). A dirty tree **PAUSE**s; `o` continues anyway.
 - `git config user.name` and `user.email` **on the product repo**. Without them, `yarn run init` and `yarn task` **PAUSE** then still cannot start.
 
-Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse an **open** PR; a closed PR is ignored and a new one is opened). When the DAG finishes, merge that PR into `main` (`gh pr merge --merge`, or `--auto` if checks are still running). Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips push, PR, and merge.
+Default `yarn task` needs `gh` (logged in) and `origin`. After each node commit: fetch origin, rebase local commits onto `origin/<branch>` if the remote moved (keep remote commits, replay ours on top, conflict policy `agent-replay`), then `git push -u origin HEAD` and `gh pr create` (or reuse an **open** PR; a closed PR is ignored and a new one is opened). When the DAG finishes on an interactive TTY, merge that PR into `main` (`gh pr merge --merge`, or `--auto` if checks are still running). Unattended runs skip merge unless `--merge`. Never `--force`, never `--no-verify`. Forbidden on `main` / `master`. `--push=false` / `--no-push` skips push, PR, and merge.
 
 At loop start and before every node, the orchestrator re-reads `.env` / `.env.example`: copies vendor/typo aliases (`XAI_API_KEY` → `GROK_API_KEY`, `X_ACCES_TOKEN` → `X_ACCESS_TOKEN`) onto canonical names without overwriting a non-empty canonical value, and derives `*_HOST` URLs from docker hostnames for CLI use on the machine.
 
@@ -96,7 +139,7 @@ At loop start and before every node, the orchestrator re-reads `.env` / `.env.ex
 | `metadata/state.json` | finished ids (gitignored) |
 | `metadata/agent-id` | agent id for the run (gitignored) |
 | `history/nodes.jsonl` | one JSON line per node (gitignored) |
-| `logs/` | `run-YYYYMMDD-HHmmss.log` and `failures.log` (gitignored) |
+| `logs/` | `run-YYYYMMDD-HHmmss.log`, `failures.log`, and `status` (gitignored) |
 
 One logs directory: `logs/` (not `log/`).
 
@@ -153,9 +196,9 @@ Stderr (TTY colors) and `dag/logs/run-YYYYMMDD-HHmmss.log` share one format. Sec
 
 Extra context on each send (knowledge briefing + similar failures + parent history + one REPAIR crash slice) is capped at **8000 characters**. REPAIR uses a single crash source: live `tests.output`, else the last `failures.log` block for that node, else a `run-*.log` extract. Parent history is omitted on COMMIT NOW.
 
-Answers: `o` / `O` / `oui` / `y` / `yes` continue; `n` / `N` / `non` / `no` stop (write `failures.log`, revert tracked files only when validation failed, history `status=failed`, non-zero exit). If stdin is not a TTY (CI), the PAUSE reason is logged and treated as `o` so unattended runs do not hang.
+Answers: `o` / `O` / `oui` / `y` / `yes` continue; `n` / `N` / `non` / `no` stop (write `failures.log`, revert tracked files only when validation failed, history `status=failed`, non-zero exit). On a TTY this is interactive. Unattended (`!stdin.isTTY` or `--unattended`) does **not** auto-accept `o` on dangerous gates: skip the node instead (no revert), except missing keys / missing DAG file which exit 1 immediately. Phone-friendly progress is overwritten at `dag/logs/status` (see SSH above).
 
-`o` on `main`/`master` continues without pushing that branch. `o` on a dirty tree continues. `o` after 5 red fix rounds does **not** revert; the node is recorded failed, skipped for archive, and the DAG goes to NEXT. Agent send `error`/`cancelled`: `o` retries once, then skips the node. Missing keys or missing DAG file still cannot run: PAUSE, `n` → exit 1; `o` prints that the run cannot start, asks once more, then exit 1.
+`o` on `main`/`master` continues without pushing that branch. `o` on a dirty tree continues. After 5 red fix rounds, unattended skips archive without reverting. Agent send `error`/`cancelled`: retry once, then skip the node. Missing keys or missing DAG file cannot run: attended PAUSE then exit 1; unattended log and exit 1.
 
 ## UI
 

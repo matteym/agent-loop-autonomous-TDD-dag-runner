@@ -37,6 +37,7 @@ import {
   metadataDagPath,
   repoRoot,
   resolveDagFile,
+  statusPath,
 } from "./paths.js";
 import { loadProjectMcp } from "./mcp.js";
 import { mergeOpenPullRequest, openOrReusePullRequest } from "./pr.js";
@@ -52,7 +53,7 @@ import {
   deriveValidationFailurePair,
   evaluateRepeatFailureFixRound,
 } from "./knowledge/diagnostics/repeat-failure-strategy.js";
-import { cannotStart, confirmContinue } from "./confirm-continue.js";
+import { cannotStart, resolveOperatorGate } from "./confirm-continue.js";
 import { extractRunLogCrash, lastFailuresLogBlock } from "./crash-log.js";
 import { formatParentHistory } from "./history-brief.js";
 import {
@@ -74,6 +75,7 @@ import {
   summarizeAgentText,
 } from "./runtime-ui.js";
 import { assembleExtraContext, capFilesHint, pickCrashSlice } from "./send-budget.js";
+import { writeStatusFile, type StatusSnapshot } from "./status.js";
 import type { McpCall } from "./stream-events.js";
 import {
   addTokenUsage,
@@ -81,6 +83,7 @@ import {
   unknownTokenUsage,
   type TokenUsage,
 } from "./token-usage.js";
+import { isUnattendedMode, shouldMergeToMain } from "./unattended.js";
 import type { ProviderName } from "./cli.js";
 import type { Dag, Task, TestSpec } from "./types.js";
 
@@ -91,7 +94,40 @@ let nodesOk = 0;
 let publishFailed = false;
 let activeDagPath = metadataDagPath;
 let activeRunId = "";
+let activeUnattended = false;
+let allowMergeMain = false;
 const runStartedAt = Date.now();
+let statusSnap: StatusSnapshot = {
+  ts: "",
+  runId: "",
+  dagFile: "",
+  nodeId: "-",
+  progress: "0/0",
+  phase: "START",
+  lastTest: "-",
+  tokenUsage: "unknown",
+  state: "RUNNING",
+};
+
+function bumpStatus(partial: Partial<StatusSnapshot>): void {
+  statusSnap = {
+    ...statusSnap,
+    ts: new Date().toISOString(),
+    runId: activeRunId || statusSnap.runId,
+    dagFile: activeDagPath,
+    ...partial,
+  };
+  writeStatusFile(statusPath, statusSnap);
+}
+
+async function fatalStart(reason: string): Promise<number> {
+  bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: reason.slice(0, 160) });
+  if (activeUnattended) {
+    log("UNATTENDED fatal-start: " + reason);
+    return 1;
+  }
+  return cannotStart(reason);
+}
 
 function gitBranch(): string {
   return (runGit(["branch", "--show-current"]).stdout || "").trim();
@@ -235,9 +271,14 @@ function runTests(tests: TestSpec[]): { ok: boolean; output: string } {
     output += chunk;
     if (result.status !== 0) {
       log(formatTestResult(false, firstFailReason(chunk, result.status)));
+      bumpStatus({
+        lastTest: "FAIL " + firstFailReason(chunk, result.status),
+        state: "RUNNING",
+      });
       return { ok: false, output };
     }
     log(formatTestResult(true, "exit 0"));
+    bumpStatus({ lastTest: "PASS exit 0", state: "RUNNING" });
   }
   return { ok: true, output };
 }
@@ -285,20 +326,30 @@ async function runAgentTask(
         };
       }
       const detail = result.error?.message || result.status;
-      const cont = await confirmContinue(
+      const gate = await resolveOperatorGate(
+        activeUnattended,
+        attempt === 0 ? "preflight-soft" : "skip-node",
         "agent run " + result.status + " id=" + run.id + " " + detail,
         attempt === 0 ? "retry the send once" : "skip this agent turn"
       );
-      if (!cont) {
+      if (gate === "stop") {
         return { ...sendStop, usage };
       }
-      if (attempt === 1) {
+      if (gate === "skip-node" || attempt === 1) {
         return { ok: false, stop: false, text: result.text || "", mcpCalls, usage };
       }
     } catch (err) {
-      const cont = await confirmContinue(String(err), attempt === 0 ? "retry the send once" : "skip this agent turn");
-      if (!cont) {
+      const gate = await resolveOperatorGate(
+        activeUnattended,
+        attempt === 0 ? "preflight-soft" : "skip-node",
+        String(err),
+        attempt === 0 ? "retry the send once" : "skip this agent turn"
+      );
+      if (gate === "stop") {
         return sendStop;
+      }
+      if (gate === "skip-node") {
+        return sendSkip;
       }
     }
   }
@@ -345,6 +396,7 @@ async function runAgentTaskWithContext(
     { ...sendContext, context_briefing: extraBlock }
   );
   logTokenUsage(formatTokenUsageLine(task.id, outcome.usage));
+  bumpStatus({ tokenUsage: formatTokenUsageLine(task.id, outcome.usage) });
   if (extra?.usageAcc) {
     extra.usageAcc.usage = addTokenUsage(extra.usageAcc.usage, outcome.usage);
   }
@@ -365,6 +417,7 @@ function printGreenSummary(outcome: SendOutcome): void {
 
 function runGuard(): { ok: boolean; output: string } {
   phase("GUARD", ".cursor/hooks/guard-anti-patterns.mjs");
+  bumpStatus({ phase: "GUARD", state: "RUNNING" });
   const result = spawnSync(
     "node",
     [join(repoRoot, ".cursor", "hooks", "guard-anti-patterns.mjs")],
@@ -458,9 +511,19 @@ function skipOrStopSend(
 ): "skip" | "stop" {
   markNodeFailed(task, nodeStarted, detail, tokens);
   if (outcome.stop) {
+    bumpStatus({
+      phase: "PAUSE",
+      state: "PAUSED",
+      lastTest: detail.slice(0, 160),
+    });
     endSummary(dag);
     return "stop";
   }
+  bumpStatus({
+    phase: "SKIP",
+    state: "SKIPPED",
+    lastTest: detail.slice(0, 160),
+  });
   log("operator continued; skipping archive for " + task.id + " and moving to next node");
   return "skip";
 }
@@ -473,6 +536,7 @@ async function runTddRed(
 ): Promise<SendOutcome> {
   captureLoopPhase(dag, task, "red_started", "agent-red-send");
   phase("RED", task.id);
+  bumpStatus({ nodeId: task.id, phase: "RED", state: "RUNNING" });
   step("waiting for agent RED send");
   const first = await runAgentTaskWithContext(
     agent,
@@ -520,24 +584,25 @@ async function runTddRed(
 
 async function preflight(): Promise<{ proceed: boolean; disablePush: boolean }> {
   phase("PREFLIGHT", "git identity, branch, working tree");
+  bumpStatus({ phase: "PREFLIGHT", state: "RUNNING" });
   try {
     requireGitIdentity(repoRoot);
   } catch {
-    const cont = await confirmContinue(missingGitIdentityHint, "exit before the loop");
-    if (!cont) {
-      return { proceed: false, disablePush: false };
-    }
+    await fatalStart(missingGitIdentityHint);
+    return { proceed: false, disablePush: false };
   }
   const branch = runGit(["branch", "--show-current"]);
   const name = (branch.stdout || "").trim();
   log("git branch=" + name);
   let disablePush = false;
   if (name === "main" || name === "master") {
-    const cont = await confirmContinue(
+    const gate = await resolveOperatorGate(
+      activeUnattended,
+      "preflight-soft",
       "branch is " + name + "; dedicated branch recommended",
       "exit 1; if you continue, this run will not git push to " + name
     );
-    if (!cont) {
+    if (gate === "stop") {
       return { proceed: false, disablePush: false };
     }
     disablePush = true;
@@ -553,11 +618,13 @@ async function preflight(): Promise<{ proceed: boolean; disablePush: boolean }> 
     for (const line of dirty.slice(0, 20)) {
       log(line);
     }
-    const cont = await confirmContinue(
+    const gate = await resolveOperatorGate(
+      activeUnattended,
+      "preflight-soft",
       "working tree is dirty; commit first",
       "exit 1; if you continue, the loop proceeds on a dirty tree"
     );
-    if (!cont) {
+    if (gate === "stop") {
       return { proceed: false, disablePush: disablePush };
     }
   }
@@ -679,14 +746,33 @@ export type LoopOpts = {
   dagPath?: string;
   provider?: ProviderName;
   push?: boolean;
+  unattended?: boolean;
+  merge?: boolean;
 };
 
 export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   initRunLog();
+  activeUnattended = isUnattendedMode({
+    stdinIsTty: Boolean(process.stdin.isTTY),
+    flag: opts.unattended,
+  });
+  allowMergeMain = Boolean(opts.merge);
+  if (activeUnattended) {
+    log(
+      "UNATTENDED mode (stdin TTY=" +
+        String(Boolean(process.stdin.isTTY)) +
+        " flag=" +
+        String(Boolean(opts.unattended)) +
+        ")"
+    );
+    if (!allowMergeMain) {
+      log("UNATTENDED merge-to-main disabled unless --merge");
+    }
+  }
   activeDagPath = opts.dagPath ? resolveDagFile(opts.dagPath) : metadataDagPath;
   const selected = resolveProvider(opts.provider);
   if (!selected.provider) {
-    return cannotStart("set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
+    return fatalStart("set CURSOR_API_KEY or ANTHROPIC_API_KEY / CLAUDE_API_KEY");
   }
   const ready = await preflight();
   if (!ready.proceed) {
@@ -699,7 +785,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   }
   const dag = loadDag(activeDagPath);
   if (!dag) {
-    return cannotStart("DAG file not found: " + activeDagPath);
+    return fatalStart("DAG file not found: " + activeDagPath);
   }
   const mcp = loadProjectMcp(repoRoot);
   logRunHeader({
@@ -712,6 +798,16 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   const state = loadState();
   mkdirSync(logsDir, { recursive: true });
   activeRunId = randomUUID();
+  bumpStatus({
+    runId: activeRunId,
+    dagFile: activeDagPath,
+    nodeId: "-",
+    progress: "0/" + String(dag.tasks.length),
+    phase: "START",
+    lastTest: "-",
+    tokenUsage: "unknown",
+    state: "RUNNING",
+  });
   captureLoopPhase(dag, undefined, "run_started", "load-plan");
   captureLoopPhase(dag, undefined, "plan_created", "start-first-node");
 
@@ -728,11 +824,24 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   nodes: for (const task of dag.tasks) {
     if (state.done.includes(task.id)) {
       phase("SKIP", task.id);
+      bumpStatus({
+        nodeId: task.id,
+        progress: String(state.done.length) + "/" + String(dag.tasks.length),
+        phase: "SKIP",
+        state: "SKIPPED",
+      });
       continue;
     }
     nodeSeparator(task.id, task.commit);
     const nodeStarted = Date.now();
     const usageAcc = { usage: unknownTokenUsage() };
+    bumpStatus({
+      nodeId: task.id,
+      progress: String(state.done.length + 1) + "/" + String(dag.tasks.length),
+      phase: tddEnabled(task) ? "RED" : "GREEN",
+      state: "RUNNING",
+      tokenUsage: formatTokenUsageLine(task.id, usageAcc.usage),
+    });
     step("starting node " + task.id);
     syncEnv();
     captureLoopPhase(dag, task, "node_started", tddEnabled(task) ? "tdd-red" : "agent-green");
@@ -747,6 +856,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
       }
       captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
+      bumpStatus({ nodeId: task.id, phase: "GREEN", state: "RUNNING" });
       step("waiting for agent GREEN send");
       const green = await runAgentTaskWithContext(
         agent,
@@ -771,6 +881,7 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     } else {
       captureLoopPhase(dag, task, "green_started", "agent-green-send");
       phase("GREEN", task.id);
+      bumpStatus({ nodeId: task.id, phase: "GREEN", state: "RUNNING" });
       step("waiting for agent GREEN send");
       const green = await runAgentTaskWithContext(
         agent,
@@ -795,6 +906,10 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     let tests = validateNode(task.tests);
     for (let round = 0; !tests.ok && round < maxFixRounds; round += 1) {
       phase("REPAIR", "fix round " + (round + 1) + " for " + task.id);
+      bumpStatus({
+        phase: "REPAIR round " + (round + 1) + "/" + String(maxFixRounds),
+        state: "RUNNING",
+      });
       const memoryRoot = resolveAgentMemoryRoot(repoRoot);
       const strategyRoot = join(memoryRoot, "diagnostics");
       const failurePair = deriveValidationFailurePair(tests.output);
@@ -845,16 +960,21 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         failure: { type: "validation", signature: "node-validation-failed" },
       });
       markNodeFailed(task, nodeStarted, tests.output, usageAcc.usage);
-      const cont = await confirmContinue(
-        "validation still red on " + task.id,
+      const failSnippet = "FAIL " + firstFailReason(tests.output, 1);
+      const gate = await resolveOperatorGate(
+        activeUnattended,
+        "skip-node",
+        "validation still red on " + task.id + " after " + String(maxFixRounds) + " fixes",
         "revert tracked files and stop the DAG"
       );
-      if (!cont) {
+      if (gate === "stop") {
         revertTrackedChanges();
+        bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: failSnippet });
         endSummary(dag);
         return 2;
       }
-      log("operator continued; skipping archive for " + task.id + " and moving to next node");
+      bumpStatus({ phase: "SKIP", state: "SKIPPED", lastTest: failSnippet });
+      log("skipping archive for " + task.id + " without reverting; moving to next node");
       continue;
     }
     captureLoopPhase(dag, task, "verification_completed", "commit-or-fix", {
@@ -864,6 +984,12 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     if (committed === "stop") {
       phase("FAIL", "commit " + task.id);
       markNodeFailed(task, nodeStarted, "agent COMMIT send stopped", usageAcc.usage);
+      if (activeUnattended) {
+        bumpStatus({ phase: "SKIP", state: "SKIPPED", lastTest: "FAIL commit stopped" });
+        log("UNATTENDED skip-node: commit send stopped for " + task.id);
+        continue;
+      }
+      bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: "FAIL commit stopped" });
       endSummary(dag);
       return 2;
     }
@@ -883,15 +1009,19 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
         status: "failed",
         tokens: usageAcc.usage,
       });
-      const cont = await confirmContinue(
+      const gate = await resolveOperatorGate(
+        activeUnattended,
+        "skip-node",
         "commit failed for " + task.id,
         "stop the DAG"
       );
-      if (!cont) {
+      if (gate === "stop") {
+        bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: "FAIL commit" });
         endSummary(dag);
         return 2;
       }
-      log("operator continued; skipping archive for " + task.id);
+      bumpStatus({ phase: "SKIP", state: "SKIPPED", lastTest: "FAIL commit" });
+      log("skipping archive for " + task.id);
       continue;
     }
     captureLoopPhase(dag, task, "commit_created", "archive");
@@ -899,14 +1029,32 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     captureLoopPhase(dag, task, "node_archived", "next-node");
     archiveFinishedTask(dag, activeDagPath, task);
     if (!orchestratorCommit("chore(config): archive dag node " + task.id, true)) {
-      const cont = await confirmContinue(
+      const gate = await resolveOperatorGate(
+        activeUnattended,
+        "skip-node",
         "archive written but chore commit failed for " + task.id,
         "stop the DAG"
       );
-      if (!cont) {
+      if (gate === "stop") {
+        bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: "FAIL archive commit" });
         endSummary(dag);
         return 2;
       }
+      bumpStatus({ phase: "SKIP", state: "SKIPPED", lastTest: "FAIL archive commit" });
+      log("archive written; chore commit failed for " + task.id);
+      state.done.push(task.id);
+      saveState(state.done);
+      appendHistory({
+        ts: new Date().toISOString(),
+        dagFile: activeDagPath,
+        nodeId: task.id,
+        commit: task.commit,
+        sha: gitHead(),
+        durationMs: Date.now() - nodeStarted,
+        status: "failed",
+        tokens: usageAcc.usage,
+      });
+      continue;
     }
     state.done.push(task.id);
     saveState(state.done);
@@ -928,7 +1076,11 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
   }
   captureLoopPhase(dag, undefined, "run_completed", "done");
   endSummary(dag);
-  if (allowPush && !publishFailed && nodesOk > 0) {
+  const mayMerge = shouldMergeToMain({
+    unattended: activeUnattended,
+    mergeFlag: allowMergeMain,
+  });
+  if (allowPush && !publishFailed && nodesOk > 0 && mayMerge) {
     phase("MERGE", "main");
     const merged = mergeOpenPullRequest(repoRoot);
     if (!merged.ok) {
@@ -937,16 +1089,23 @@ export async function runLoop(opts: LoopOpts = {}): Promise<number> {
     } else {
       log("merged " + merged.output);
     }
+  } else if (allowPush && nodesOk > 0 && !mayMerge) {
+    log("UNATTENDED skipped git merge to main (pass --merge to enable)");
   }
   if (publishFailed) {
-    const cont = await confirmContinue(
+    const gate = await resolveOperatorGate(
+      activeUnattended,
+      "publish",
       "nodes finished; origin publish incomplete",
       "exit 2"
     );
-    if (!cont) {
+    if (gate === "stop") {
+      bumpStatus({ phase: "PAUSE", state: "PAUSED", lastTest: "FAIL publish" });
       return 2;
     }
-    return 0;
+    bumpStatus({ phase: "COMPLETE", state: "COMPLETED" });
+    return activeUnattended && nodesOk === 0 ? 2 : 0;
   }
+  bumpStatus({ phase: "COMPLETE", state: "COMPLETED" });
   return 0;
 }
