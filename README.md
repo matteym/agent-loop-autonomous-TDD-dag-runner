@@ -5,17 +5,17 @@ Local autonomous software-engineering runtime. You give an intent; a runner on y
 It is not a chat bot, not a SaaS, not a desktop app, and not a cloud agent VM. Agents run locally with the Cursor SDK or the Claude Code SDK. The **orchestrator** owns tests, git push, PRs, and merge. The **agent** never `git push`.
 
 ```bash
-# inside an empty product git clone:
+# this engine repo:
 git clone https://github.com/matteym/agent-loop-autonomous-TDD-dag-runner.git
-cd agent-loop-autonomous-TDD-dag-runner/dag
+cd agent-loop-autonomous-TDD-dag-runner
 yarn
 yarn run init --remote=https://github.com/YOU/YOUR-REPO.git
-yarn task "add JWT login on the API"
+yarn dag "add JWT login on the API"
 ```
 
 That is the product: **init** (empty `src/`, Compose stub, GitHub Actions, first push), then **task** (plan → RED → GREEN → guard → tests → commit → push → PR).
 
-**Never run `yarn init`.** Yarn v1 overwrites `dag/package.json`. Always **`yarn run init`**.
+**Never run `yarn init` without `run`.** Yarn v1 overwrites `package.json`. Always **`yarn run init`** (or `yarn dag init`).
 
 ---
 
@@ -36,34 +36,56 @@ The agent never `git push`. Pass `--no-push` / `--push=false` to stay fully loca
 
 ---
 
-## Quick start (nested plugin)
+## Quick start
 
-**Need:** Node + Yarn in `dag/`, `git config user.name` / `user.email` **on the product repo**, a [Cursor](https://cursor.com) key (`CURSOR_API_KEY` or `CURSOR_SDK_API`) and/or a Claude key (`ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`), [`gh`](https://cli.github.com/) logged in (unless `--no-push`), a GitHub repo URL.
+**Need:** Node + Yarn, `git config user.name` / `user.email` **on the product repo**, a [Cursor](https://cursor.com) key (`CURSOR_API_KEY` or `CURSOR_SDK_API`) and/or a Claude key (`ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`), [`gh`](https://cli.github.com/) logged in (unless `--no-push`), a GitHub repo URL.
+
+After **init**, `dag/` is versioned **in the product repo**. A colleague clones the app, runs the usual `yarn`, and uses the same commands:
+
+```bash
+git clone https://github.com/YOU/YOUR-REPO.git
+cd YOUR-REPO
+yarn
+yarn dag "Build a notes API with Express and yarn test"
+# phone: yarn dag:mobile    desktop: yarn dag:desktop
+```
+
+No extra GitHub account, submodule, or paid package. `postinstall` installs the engine under `dag/`.
+
+First bootstrap (once), from this engine:
 
 ```bash
 cd your-product-repo
-
 git clone https://github.com/matteym/agent-loop-autonomous-TDD-dag-runner.git
-cd agent-loop-autonomous-TDD-dag-runner/dag
+cd agent-loop-autonomous-TDD-dag-runner
 yarn
-
-# writes compose, empty src/, CI, .cursor on the parent (product root)
-# and gitignores this plugin folder
 yarn run init --remote=https://github.com/YOU/YOUR-REPO.git
-
-# dedicated branch required (not main / master)
-yarn task "Build a notes API with Express and yarn test"
 ```
 
-`yarn task` **PAUSE**s on `main` / `master` and a dirty working tree (`still continue ? o/n`). Runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`, `dag/logs/status`) and operator-owned `.cursor/mcp.json` are ignored. `o` on `main` continues the run as `--no-push`. `n` stops. Unattended / non-TTY never auto-merges `main` unless `--merge`.
+Init copies `dag/` onto the product, writes `package.json` scripts (`yarn dag`), copies `.cursor`, and gitignores only the leftover nested clone (not `dag/`). Then:
 
-Stay local: `yarn task --no-push "…"`.
+```bash
+yarn dag "Build a notes API with Express and yarn test"
+```
 
-Skip the planner: `yarn task --dagfile=path/to/your.json`.
+`yarn dag` **PAUSE**s on `main` / `master` and a dirty working tree (`still continue ? o/n`). Runtime artefacts (`dag/metadata/*`, `dag/history/`, `dag/logs/*.log`, `dag/logs/status`) and operator-owned `.cursor/mcp.json` are ignored. `o` on `main` continues the run as `--no-push`. `n` stops. Unattended / non-TTY never auto-merges `main` unless `--merge`.
 
-SSH / phone (no daemon): from `dag/`, `./run/mobile/run.sh` then `./run/mobile/run.sh status`. Desktop: `./run/desktop/run.sh` (Windows: `powershell -File ./run/desktop/run.ps1`).
+Stay local: `yarn dag --no-push "…"`.
 
-Copy only `dag/` + `.cursor/` into a product root if you want the engine **without** nesting this GitHub history. Default is to clone the whole engine inside the product repo: init targets `../` and gitignores the plugin folder. Nested engine `.git` is parked as `.git.engine` so git from `dag/` is the **product** repo.
+Skip the planner: `yarn dag --dagfile=path/to/your.json`.
+
+SSH / phone (no daemon): `yarn dag:mobile` then `./dag/run/mobile/run.sh status`. Desktop: `yarn dag:desktop` (Windows: `powershell -File ./dag/run/desktop/run.ps1`).
+
+### Update the agent
+
+Same repo: you `git push` `dag/` with the app; others `git pull` then `yarn` (postinstall reinstalls the engine).
+
+Several apps sharing this GitHub repo as a package:
+
+```bash
+yarn add @local/dag-agent@git+https://github.com/matteym/agent-loop-autonomous-TDD-dag-runner.git
+yarn upgrade @local/dag-agent
+```
 
 ---
 
@@ -71,14 +93,15 @@ Copy only `dag/` + `.cursor/` into a product root if you want the engine **witho
 
 `yarn run init --remote=<github-url>` is required (`--repo=` is the same). It writes on the **product** git work tree:
 
-- `src/` (empty — fill it with `yarn task`, not a backend/frontend split unless the intent says so)
+- `src/` (empty — fill it with `yarn dag`, not a backend/frontend split unless the intent says so)
 - Compose stub + `.env` / `.env.example` (`APP_PORT`)
 - `.cursor/` (skill, rule, hooks) — never overwrites an existing `.cursor/mcp.json`
 - `.github/workflows/ci.yml` — TypeScript, Python, Go, Rust
-- parent `.gitignore` includes the plugin directory
+- `dag/` copied onto the product and `package.json` scripts `yarn dag` / `yarn dag:mobile` / `yarn dag:desktop`
+- leftover nested engine clone gitignored (the versioned engine is `dag/`)
 - commit on `agent/init`, product `origin` set, **pushed** (never `--force`)
 
-`--yes` skips a TTY confirm. `--force` overwrites a non-empty product. On an empty repo, `yarn task` does not replace init.
+`--yes` skips a TTY confirm. `--force` overwrites a non-empty product. On an empty repo, `yarn dag` does not replace init.
 
 If a later node edits `docker-compose.yml` / `.env.example`, the orchestrator syncs `.env` (never commits it) and runs `docker compose up --build -d`.
 
@@ -86,7 +109,7 @@ If a later node edits `docker-compose.yml` / `.env.example`, the orchestrator sy
 
 ## Task loop
 
-From `dag/`:
+From the product root (`yarn dag`) or `dag/` (`yarn task`):
 
 | Flag | Role |
 |---|---|

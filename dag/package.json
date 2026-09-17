@@ -1,10 +1,13 @@
 {
-  "name": "agent-loop",
+  "name": "@local/dag-agent",
   "private": true,
   "type": "module",
   "version": "1.0.0",
   "license": "MIT",
   "description": "local DAG runner that plans and TDD-executes Cursor/Claude agents",
+  "bin": {
+    "dag": "./bin/dag.js"
+  },
   "scripts": {
     "init": "tsx run-dag-loop.ts init",
     "task": "tsx run-dag-loop.ts task",

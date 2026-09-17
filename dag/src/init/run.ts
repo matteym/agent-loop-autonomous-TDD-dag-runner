@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { defaultPort, validatePort, type InitPort } from "./port.js";
 import { copyEngineCursor, writeBootstrap } from "./bootstrap.js";
+import { vendorDagIntoProduct, writeProductPackage } from "./product-package.js";
 import { syncCiWorkflow } from "../ci.js";
 import { renderCompose } from "./compose.js";
 import { hasCompose, isEmptyTarget, repoHasServerSrc } from "./detect.js";
@@ -17,6 +18,7 @@ import { confirmContinue } from "../confirm-continue.js";
 import { log, phase } from "./log.js";
 import { pluginGitignoreLine } from "../layout.js";
 import {
+  dagDir,
   engineRoot,
   metadataInitDefaultsPath,
   nestedPlugin,
@@ -107,9 +109,12 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
   const extraIgnore = pluginDirName ? [pluginGitignoreLine(pluginDirName)] : [];
   writeBootstrap(repoRoot, extraIgnore);
   if (nestedPlugin) {
-    phase("PLUGIN", pluginDirName + " gitignored; engine .git parked; .cursor copied to parent");
+    phase("PLUGIN", pluginDirName + " leftover clone gitignored; dag/ is versioned on the product");
     copyEngineCursor(engineRoot, repoRoot);
   }
+  phase("DAG", "vendor engine + yarn dag");
+  vendorDagIntoProduct(dagDir, join(repoRoot, "dag"));
+  writeProductPackage(repoRoot);
   phase("CI", ".github/workflows/ci.yml");
   syncCiWorkflow(repoRoot);
   commitBootstrap(repoRoot);
@@ -125,6 +130,6 @@ export async function runInit(opts: InitOpts = {}): Promise<InitResult> {
     return { status: "refused", reason: pushed.reason };
   }
   log("origin=" + linked.url);
-  log('next: yarn task "your first feature"');
+  log('next: yarn dag "your first feature"');
   return { status: "ok" };
 }

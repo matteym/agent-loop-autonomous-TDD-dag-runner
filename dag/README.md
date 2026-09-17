@@ -2,27 +2,31 @@
 
 Local DAG runner (Cursor SDK or Claude Code). Not a SaaS.
 
-Engine = this repo (`dag/` + `.cursor/`). Drop the whole clone inside a product git repo: `yarn run init` writes compose, `.env`, app tree, GitHub Actions, and `.cursor` on the **parent** (`../`) and gitignores this plugin folder. Entry: `run-dag-loop.ts`.
+Engine = this repo (`dag/` + `.cursor/`). `yarn` at the repo root installs the engine. Init copies `dag/` onto the product and adds `yarn dag`. The leftover nested clone can be gitignored; **`dag/` is versioned with the app**. Entry: `run-dag-loop.ts`.
 
 ## Commands
 
-From `dag/`:
+From the **product or engine root**:
 
 ```bash
 yarn
 yarn run init --remote=https://github.com/OWNER/REPO.git
-yarn task "Add JWT login on the API"
+yarn dag "Add JWT login on the API"
 yarn test
 ```
 
-**Never `yarn init`.** Yarn v1 uses that for a package.json wizard and will overwrite `dag/package.json`. Always **`yarn run init`**.
+Same commands after `git clone` of the app: `yarn` then `yarn dag` / `yarn dag:mobile` / `yarn dag:desktop`.
+
+From `dag/` the old names still work: `yarn task`, `yarn mobile`, `yarn desktop`.
+
+**Never `yarn init`.** Yarn v1 uses that for a package.json wizard. Always **`yarn run init`**.
 
 | Command | Role |
 |---|---|
 | `yarn run init --remote=<github-url>` | required: bootstrap + `.github/workflows/ci.yml` + push `agent/*` |
-| `yarn task "…"` | intent → plan (max 20 features) → TDD loop |
-| `yarn mobile` / `./run/mobile/run.sh` | SSH/phone launcher (tmux, unattended, per-run flags) |
-| `yarn desktop` / `./run/desktop/run.sh` | desktop launcher (same flags, current terminal) |
+| `yarn dag "…"` | intent → plan (max 20 features) → TDD loop |
+| `yarn dag:mobile` / `dag/run/mobile/run.sh` | SSH/phone launcher (tmux, unattended, per-run flags) |
+| `yarn dag:desktop` / `dag/run/desktop/run.sh` | desktop launcher (same flags, current terminal) |
 | `yarn test` | engine unit tests (`vitest run`) |
 
 `yarn tsc --noEmit` typechecks the engine.
@@ -145,7 +149,7 @@ One logs directory: `logs/` (not `log/`).
 
 ## Copy into another repo
 
-Clone this repo **inside** the product git clone. From `dag/`: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`. Init targets the parent work tree and gitignores the plugin directory. The first `yarn run init` / `yarn task` **parks** the nested engine `.git` as `.git.engine` so `git status` / `git log` from `dag/` use the **product** repo. The orchestrator already runs git with `cwd` = product root. To work on the engine itself, use a standalone clone (not the nested copy), or `git --git-dir=.git.engine --work-tree=.` from the plugin root.
+Clone this repo **inside** the product git clone. From the engine root: `yarn && yarn run init --remote=https://github.com/OWNER/REPO.git`. Init vendors `dag/` onto the parent (versioned) and gitignores the leftover nested clone. The first `yarn run init` / `yarn dag` **parks** the nested engine `.git` as `.git.engine` so `git status` from the leftover clone uses the **product** repo. The orchestrator already runs git with `cwd` = product root. To work on the engine itself, use a standalone clone, or `git --git-dir=.git.engine --work-tree=.` from the plugin root.
 
 Alternatively copy only `dag/` and `.cursor/` to the product root (engine = product). Same init command.
 
