@@ -16,11 +16,18 @@ function resolveLimit(limit: number | undefined): number {
   return 10;
 }
 
+const gitLogCache = new Map<string, GitPathCommit[]>();
+
 /** Recent commits touching a path via local `git log`. */
 export function findRecentCommitsForPath(input: RecentGitHistoryInput): GitPathCommit[] {
   const repoRoot = path.resolve(input.repo_root);
   const filePath = input.file_path.replace(/\\/g, "/");
   const limit = resolveLimit(input.limit);
+  const cacheKey = `${repoRoot}\0${filePath}\0${limit}`;
+  const cached = gitLogCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
   const result = spawnSync(
     "git",
@@ -32,6 +39,7 @@ export function findRecentCommitsForPath(input: RecentGitHistoryInput): GitPathC
   );
 
   if (result.status !== 0) {
+    gitLogCache.set(cacheKey, []);
     return [];
   }
 
@@ -49,5 +57,6 @@ export function findRecentCommitsForPath(input: RecentGitHistoryInput): GitPathC
       subject: line.slice(tab + 1),
     });
   }
+  gitLogCache.set(cacheKey, commits);
   return commits;
 }

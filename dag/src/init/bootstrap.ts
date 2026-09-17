@@ -17,6 +17,7 @@ const ignoreLines = [
   "dag/logs/*.log",
   "dag/logs/status",
   "dag/logs/next-run.sh",
+  ".agent-memory/",
 ];
 
 function writeFile(path: string, contents: string) {

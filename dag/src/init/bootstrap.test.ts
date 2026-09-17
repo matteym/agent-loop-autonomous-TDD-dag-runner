@@ -16,9 +16,27 @@ describe("writeBootstrap", () => {
       expect(gitignore).toContain(".env");
       expect(gitignore).toContain("dag/logs/status");
       expect(gitignore).toContain("dag/logs/next-run.sh");
+      expect(gitignore).toContain(".agent-memory/");
       expect(existsSync(join(dir, "src", ".gitkeep"))).toBe(true);
       expect(existsSync(join(dir, "src", "backend"))).toBe(false);
       expect(existsSync(join(dir, "src", "frontend"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("appends .agent-memory/ to an existing product gitignore without duplicating it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dag-boot-memory-"));
+    try {
+      writeFileSync(join(dir, ".gitignore"), ".env\nnode_modules/\n");
+      writeBootstrap(dir);
+      const gitignore = readFileSync(join(dir, ".gitignore"), "utf8");
+      expect(gitignore).toContain(".agent-memory/");
+      expect(gitignore.match(/^\.agent-memory\/$/gm)).toHaveLength(1);
+      writeBootstrap(dir);
+      expect(readFileSync(join(dir, ".gitignore"), "utf8").match(/^\.agent-memory\/$/gm)).toHaveLength(
+        1
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

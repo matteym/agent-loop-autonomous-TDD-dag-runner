@@ -135,8 +135,15 @@ function buildSnapshot(rootPath: string): CodebaseIndexSnapshot {
   return { root, files, test_files };
 }
 
+const indexCache = new Map<string, CodebaseIndex>();
+
 /** Scan a local tree and build a file/import/symbol index. */
 export function buildCodebaseIndex(rootPath: string): CodebaseIndex {
+  const cacheKey = path.resolve(rootPath);
+  const cached = indexCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
   const snapshot = buildSnapshot(rootPath);
 
   const symbolByName = new Map<string, SymbolDefinition>();
@@ -151,7 +158,7 @@ export function buildCodebaseIndex(rootPath: string): CodebaseIndex {
   const fileByPath = new Map(snapshot.files.map((file) => [file.path, file]));
   const testFileSet = new Set(snapshot.test_files);
 
-  return {
+  const index: CodebaseIndex = {
     snapshot,
     findSymbolDefinition(symbolName: string): SymbolDefinition | undefined {
       return symbolByName.get(symbolName);
@@ -211,4 +218,6 @@ export function buildCodebaseIndex(rootPath: string): CodebaseIndex {
       return deps;
     },
   };
+  indexCache.set(cacheKey, index);
+  return index;
 }

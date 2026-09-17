@@ -21,6 +21,12 @@ describe("isControlledDirty", () => {
     expect(isControlledDirty(".cursor/mcp.json")).toBe(true);
   });
 
+  it("ignores local .agent-memory so yarn task can start", () => {
+    expect(isControlledDirty(".agent-memory")).toBe(true);
+    expect(isControlledDirty(".agent-memory/runs/run-1.json")).toBe(true);
+    expect(isControlledDirty(".agent-memory/checkpoints/events.jsonl")).toBe(true);
+  });
+
   it("ignores a nested engine plugin folder on the product repo", () => {
     const plugin = "agent-loop-autonomous-TDD-dag-runner";
     expect(isControlledDirty(plugin, plugin)).toBe(true);

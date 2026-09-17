@@ -7,6 +7,7 @@ import type { AgentContext, ContextBuilderInput } from "./types.js";
 import type { NodeSendContextInput, NodeSendContextResult } from "./loop-context.js";
 
 const DEFAULT_BRIEFING_MAX_CHARS = 8000;
+const DEFAULT_MAX_QUERIES = 8;
 const INSPECT_PREFIX =
   "INSPECT MORE: context sufficiency gate blocked code changes. Read listed files, tests, and memories before editing.\n\n";
 
@@ -30,6 +31,18 @@ function truncateBriefing(text: string): string {
   return `${text.slice(0, max - 1)}…`;
 }
 
+function resolveQueryLimit(): number {
+  const raw = process.env.CONTEXT_MAX_QUERIES?.trim();
+  if (!raw) {
+    return DEFAULT_MAX_QUERIES;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MAX_QUERIES;
+  }
+  return parsed;
+}
+
 function retrievalQueries(input: NodeSendContextInput): string[] {
   const queries = new Set<string>();
   const prompt = input.nodePrompt.trim();
@@ -49,10 +62,32 @@ function retrievalQueries(input: NodeSendContextInput): string[] {
       }
     }
   }
+  const maxQueries = resolveQueryLimit();
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed) || selected.length >= maxQueries) {
+      return;
+    }
+    seen.add(trimmed);
+    selected.push(trimmed);
+  };
   for (const hint of input.filesHint ?? []) {
-    queries.add(hint.replace(/\\/g, "/"));
+    const normalized = hint.replace(/\\/g, "/");
+    push(normalized);
+    const base = normalized.split("/").pop() ?? "";
+    push(base.replace(/\.(ts|tsx|js|jsx)$/, ""));
   }
-  return [...queries];
+  const ngrams = [...queries];
+  const threeWord = ngrams.filter((query) => query.split(" ").length === 3);
+  const rest = ngrams
+    .filter((query) => query.split(" ").length !== 3)
+    .sort((left, right) => right.length - left.length);
+  for (const query of [...threeWord, ...rest]) {
+    push(query);
+  }
+  return selected;
 }
 
 function collectMemoryIds(input: NodeSendContextInput): string[] {

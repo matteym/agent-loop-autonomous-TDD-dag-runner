@@ -2,10 +2,12 @@ import path from "node:path";
 import { findRecentCommitsForPath } from "../codebase/git-index.js";
 import { buildCodebaseIndex } from "../codebase/indexer.js";
 import { retrieveExactPathSymbol } from "./exact-path-symbol.js";
-import type { RetrievalHit, RetrieveGitDepsInput } from "./types.js";
+import type { RetrievalHit, RetrievalMatchKind, RetrieveGitDepsInput } from "./types.js";
 
 const SCORE_DEPENDENCY = 150;
 const SCORE_GIT = 120;
+const MAX_GIT_LOG_FILES = 8;
+const GIT_LOG_HIT_KINDS: ReadonlySet<RetrievalMatchKind> = new Set(["exact", "symbol"]);
 
 function normalizeModulePath(modulePath: string): string {
   let normalized = modulePath.replace(/\\/g, "/");
@@ -20,11 +22,20 @@ function resolveImport(fromFile: string, spec: string): string {
   return normalizeModulePath(joined);
 }
 
-function matchedFilesFromHits(hits: RetrievalHit[]): Set<string> {
-  const files = new Set<string>();
+function gitLogFilesFromHits(hits: RetrievalHit[]): string[] {
+  const files: string[] = [];
+  const seen = new Set<string>();
   for (const hit of hits) {
-    if (hit.file) {
-      files.add(hit.file);
+    if (!hit.file || !GIT_LOG_HIT_KINDS.has(hit.kind)) {
+      continue;
+    }
+    if (seen.has(hit.file)) {
+      continue;
+    }
+    seen.add(hit.file);
+    files.push(hit.file);
+    if (files.length >= MAX_GIT_LOG_FILES) {
+      break;
     }
   }
   return files;
@@ -60,11 +71,11 @@ export function retrieveGitDeps(input: RetrieveGitDepsInput): RetrievalHit[] {
   });
 
   const codebase = buildCodebaseIndex(input.codebase_root);
-  const matched = matchedFilesFromHits(hits);
+  const neighborSeeds = gitLogFilesFromHits(hits);
   const repoRoot = input.repo_root ?? input.codebase_root;
 
   const seen = new Set<string>();
-  for (const matchedFile of matched) {
+  for (const matchedFile of neighborSeeds) {
     for (const neighbor of dependencyNeighbors(codebase, matchedFile)) {
       const key = `dependency:${neighbor}`;
       if (seen.has(key)) {
@@ -77,7 +88,9 @@ export function retrieveGitDeps(input: RetrieveGitDepsInput): RetrievalHit[] {
         file: neighbor,
       });
     }
+  }
 
+  for (const matchedFile of neighborSeeds) {
     const commits = findRecentCommitsForPath({
       repo_root: repoRoot,
       file_path: matchedFile,
