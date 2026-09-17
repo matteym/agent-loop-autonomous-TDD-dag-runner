@@ -365,6 +365,7 @@ async function runAgentTaskWithContext(
   nextAction: string,
   extra?: { crash?: string; usageAcc?: { usage: TokenUsage } }
 ): Promise<SendOutcome> {
+  phase("CONTEXT", "build node context");
   const filesHint = collectFilesHint(task);
   const sendContext = buildNodeSendContext({
     nodePrompt: task.prompt,
@@ -381,7 +382,6 @@ async function runAgentTaskWithContext(
     filesHint,
     omitParentHistory: commitNow,
   });
-  phase("CONTEXT", "build node context");
   captureLoopPhase(dag, task, "context_built", nextAction, {
     context: {
       memory_ids: sendContext.memory_ids,

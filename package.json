@@ -1,0 +1,20 @@
+{
+  "name": "@local/dag-agent",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "local DAG runner that plans and TDD-executes Cursor/Claude agents",
+  "bin": {
+    "dag": "./dag/bin/dag.js"
+  },
+  "scripts": {
+    "prepare": "node dag/scripts/prepare.mjs",
+    "postinstall": "node dag/scripts/prepare.mjs",
+    "dag": "node dag/bin/dag.js",
+    "init": "node dag/bin/dag.js init",
+    "test": "yarn --cwd dag test",
+    "mobile": "yarn --cwd dag mobile",
+    "desktop": "yarn --cwd dag desktop"
+  }
+}

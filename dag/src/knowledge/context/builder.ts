@@ -10,6 +10,7 @@ import type { AgentContext, ContextBuilderInput } from "./types.js";
 const DEFAULT_MAX_FILES = 8;
 const DEFAULT_MAX_SECTION_ITEMS = 5;
 const DEFAULT_MAX_TEXT_CHARS = 240;
+const DEFAULT_MAX_QUERIES = 8;
 
 function resolveLimit(envKey: string, fallback: number): number {
   const raw = process.env[envKey]?.trim();
@@ -59,7 +60,30 @@ function buildRetrievalQueries(input: ContextBuilderInput): string[] {
     queries.add(normalized);
     queries.add(path.basename(normalized, path.extname(normalized)));
   }
-  return [...queries];
+  const maxQueries = resolveLimit("CONTEXT_MAX_QUERIES", DEFAULT_MAX_QUERIES);
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string) => {
+    if (!value || seen.has(value) || selected.length >= maxQueries) {
+      return;
+    }
+    seen.add(value);
+    selected.push(value);
+  };
+  for (const hint of input.filesHint ?? []) {
+    const normalized = normalizePath(hint);
+    push(normalized);
+    push(path.basename(normalized, path.extname(normalized)));
+  }
+  const ngrams = [...queries];
+  const threeWord = ngrams.filter((query) => query.split(" ").length === 3);
+  const rest = ngrams
+    .filter((query) => query.split(" ").length !== 3)
+    .sort((left, right) => right.length - left.length);
+  for (const query of [...threeWord, ...rest]) {
+    push(query);
+  }
+  return selected;
 }
 
 function mergeHits(queryList: string[], input: ContextBuilderInput): RetrievalHit[] {

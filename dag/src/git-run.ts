@@ -33,6 +33,9 @@ export function isControlledDirty(file: string, pluginName: string | null = plug
   if (n === ".cursor/mcp.json") {
     return true;
   }
+  if (n === ".agent-memory" || n.startsWith(".agent-memory/")) {
+    return true;
+  }
   return false;
 }
 
